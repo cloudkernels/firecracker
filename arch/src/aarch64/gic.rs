@@ -10,6 +10,8 @@ use kvm_ioctls::{DeviceFd, VmFd};
 const SZ_64K: u64 = 0x0001_0000;
 const KVM_VGIC_V3_DIST_SIZE: u64 = SZ_64K;
 const KVM_VGIC_V3_REDIST_SIZE: u64 = (2 * SZ_64K);
+const KVM_VGIC_V2_DIST_SIZE: u64 = 0x1000;
+const KVM_VGIC_V2_CPU_SIZE: u64 = 0x2000;
 
 #[derive(Debug)]
 pub enum Error {
@@ -21,10 +23,79 @@ pub enum Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
+/// Create a GICv2 device.
+///
+pub fn create_gicv3(vm: &VmFd, vcpu_count: u8) -> Result<DeviceFd> {
+    let mut gic_device = kvm_bindings::kvm_create_device {
+        type_: kvm_bindings::kvm_device_type_KVM_DEV_TYPE_ARM_VGIC_V2,
+        fd: 0,
+        flags: 0,
+    };
+
+    let vgic_fd = vm
+        .create_device(&mut gic_device)
+        .map_err(Error::CreateGIC)?;
+
+    /* Setting up the distributor attribute.
+     We are placing the GIC below 1GB so we need to substract the size of the distributor.
+    */
+    let dist_attr = kvm_bindings::kvm_device_attr {
+        group: kvm_bindings::KVM_DEV_ARM_VGIC_GRP_ADDR,
+        attr: u64::from(kvm_bindings::KVM_VGIC_V2_ADDR_TYPE_DIST),
+        addr: &get_dist_addr_v2() as *const u64 as u64,
+        flags: 0,
+    };
+    vgic_fd
+        .set_device_attr(&dist_attr)
+        .map_err(Error::SetDeviceAttribute)?;
+
+    /* Setting up the CPU attribute.
+     */
+    let cpu_attr = kvm_bindings::kvm_device_attr {
+        group: kvm_bindings::KVM_DEV_ARM_VGIC_GRP_ADDR,
+        attr: u64::from(kvm_bindings::KVM_VGIC_V2_ADDR_TYPE_CPU),
+        addr: &get_cpu_addr_v2() as *const u64 as u64,
+        flags: 0,
+    };
+    vgic_fd
+        .set_device_attr(&cpu_attr)
+        .map_err(Error::SetDeviceAttribute)?;
+
+    /* We need to tell the kernel how many irqs to support with this vgic.
+    See the `layout` module for details.
+    */
+    let nr_irqs: u32 = super::layout::IRQ_MAX - super::layout::IRQ_BASE + 1;
+    let nr_irqs_ptr = &nr_irqs as *const u32;
+    let nr_irqs_attr = kvm_bindings::kvm_device_attr {
+        group: kvm_bindings::KVM_DEV_ARM_VGIC_GRP_NR_IRQS,
+        attr: 0,
+        addr: nr_irqs_ptr as u64,
+        flags: 0,
+    };
+    vgic_fd
+        .set_device_attr(&nr_irqs_attr)
+        .map_err(Error::SetDeviceAttribute)?;
+
+    /* Finalize the GIC.
+         See https://code.woboq.org/linux/linux/virt/kvm/arm/vgic/vgic-kvm-device.c.html#211.
+    */
+    let init_gic_attr = kvm_bindings::kvm_device_attr {
+        group: kvm_bindings::KVM_DEV_ARM_VGIC_GRP_CTRL,
+        attr: u64::from(kvm_bindings::KVM_DEV_ARM_VGIC_CTRL_INIT),
+        addr: 0,
+        flags: 0,
+    };
+    vgic_fd
+        .set_device_attr(&init_gic_attr)
+        .map_err(Error::SetDeviceAttribute)?;
+
+    Ok(vgic_fd)
+}
+
 /// Create a GICv3 device.
 ///
 /// Logic from this function is based on virt/kvm/arm/vgic/vgic-kvm-device.c from linux kernel.
-pub fn create_gicv3(vm: &VmFd, vcpu_count: u8) -> Result<DeviceFd> {
+pub fn create_gicv2(vm: &VmFd, vcpu_count: u8) -> Result<DeviceFd> {
     /* We are creating a V3 GIC.
      As per https://static.docs.arm.com/dai0492/b/GICv3_Software_Overview_Official_Release_B.pdf,
      section 3.5 Programmers' model, the register interface of a GICv3 interrupt controller is split
@@ -119,6 +190,26 @@ pub fn get_redists_addr(vcpu_count: u64) -> u64 {
 /// Get the size of the GIC redistributors.
 pub fn get_redists_size(vcpu_count: u64) -> u64 {
     vcpu_count * KVM_VGIC_V3_REDIST_SIZE
+}
+
+/// Get the address of the GICv2 distributor.
+pub fn get_dist_addr_v2() -> u64 {
+    super::layout::MAPPED_IO_START - KVM_VGIC_V2_DIST_SIZE
+}
+
+/// Get the size of the GIC_v2 distributor.
+pub fn get_dist_size_v2() -> u64 {
+    KVM_VGIC_V2_DIST_SIZE
+}
+
+/// Get the address of the GIC_v2 CPU.
+pub fn get_cpu_addr_v2() -> u64 {
+    get_dist_addr_v2() - KVM_VGIC_V2_CPU_SIZE
+}
+
+/// Get the size of the GIC_v2 CPU.
+pub fn get_cpu_size_v2() -> u64 {
+    KVM_VGIC_V2_CPU_SIZE
 }
 
 #[cfg(test)]
