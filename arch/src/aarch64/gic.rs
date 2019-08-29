@@ -25,7 +25,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// Create a GICv2 device.
 ///
-pub fn create_gicv3(vm: &VmFd, vcpu_count: u8) -> Result<DeviceFd> {
+pub fn create_gicv2(vm: &VmFd, vcpu_count: u8) -> Result<DeviceFd> {
     let mut gic_device = kvm_bindings::kvm_create_device {
         type_: kvm_bindings::kvm_device_type_KVM_DEV_TYPE_ARM_VGIC_V2,
         fd: 0,
@@ -95,7 +95,7 @@ pub fn create_gicv3(vm: &VmFd, vcpu_count: u8) -> Result<DeviceFd> {
 /// Create a GICv3 device.
 ///
 /// Logic from this function is based on virt/kvm/arm/vgic/vgic-kvm-device.c from linux kernel.
-pub fn create_gicv2(vm: &VmFd, vcpu_count: u8) -> Result<DeviceFd> {
+pub fn create_gicv3(vm: &VmFd, vcpu_count: u8) -> Result<DeviceFd> {
     /* We are creating a V3 GIC.
      As per https://static.docs.arm.com/dai0492/b/GICv3_Software_Overview_Official_Release_B.pdf,
      section 3.5 Programmers' model, the register interface of a GICv3 interrupt controller is split

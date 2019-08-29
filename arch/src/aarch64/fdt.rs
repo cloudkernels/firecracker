@@ -355,7 +355,7 @@ fn create_gic_node(fdt: &mut Vec<u8>, vcpu_count: u64) -> Result<()> {
     ]);
 
     append_begin_node(fdt, "intc")?;
-    append_property_string(fdt, "compatible", "arm,gic-v3")?;
+    append_property_string(fdt, "compatible", "arm,gic-400")?;
     append_property_null(fdt, "interrupt-controller")?;
     // "interrupt-cells" field specifies the number of cells needed to encode an
     // interrupt source. The type shall be a <u32> and the value shall be 3 if no PPI affinity description
