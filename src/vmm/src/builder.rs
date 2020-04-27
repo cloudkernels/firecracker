@@ -25,7 +25,7 @@ use crate::{device_manager, Error, Vmm, VmmEventsObserver};
 
 use arch::InitrdConfig;
 use devices::legacy::Serial;
-use devices::virtio::{Block, MmioTransport, Net, VirtioDevice, Vsock, VsockUnixBackend};
+use devices::virtio::{Block, MmioTransport, Net, VirtioDevice, Vsock, VsockUnixBackend, Crypto};
 use kernel::cmdline::Cmdline as KernelCmdline;
 use logger::warn;
 use polly::event_manager::{Error as EventManagerError, EventManager, Subscriber};
@@ -336,6 +336,12 @@ pub fn build_microvm_for_boot(
     if let Some(unix_vsock) = vm_resources.vsock.get() {
         attach_unixsock_vsock_device(&mut vmm, &mut boot_cmdline, unix_vsock, event_manager)?;
     }
+    attach_crypto_devices(
+        &mut vmm,
+        &mut boot_cmdline,
+        vm_resources.crypto_builder.list.iter(),
+        event_manager
+    )?;
 
     #[cfg(target_arch = "aarch64")]
     attach_legacy_devices_aarch64(event_manager, &mut vmm, &mut boot_cmdline).map_err(Internal)?;
@@ -776,6 +782,20 @@ fn attach_net_devices<'a>(
         // The device mutex mustn't be locked here otherwise it will deadlock.
         attach_virtio_device(event_manager, vmm, id, net_device.clone(), cmdline)?;
     }
+    Ok(())
+}
+
+fn attach_crypto_devices<'a>(
+    vmm: &mut Vmm,
+    cmdline: &mut KernelCmdline,
+    crypto_devices: impl Iterator<Item = &'a Arc<Mutex<Crypto>>>,
+    event_manager: &mut EventManager,
+) -> std::result::Result<(), StartMicrovmError> {
+    for crypto_device in crypto_devices {
+        let id = crypto_device.lock().expect("Poisoned lock").id().clone();
+        attach_virtio_device(event_manager, vmm, id, crypto_device.clone(), cmdline)?;
+    }
+
     Ok(())
 }
 
