@@ -13,6 +13,7 @@ pub mod mmds;
 pub mod net;
 pub mod snapshot;
 pub mod vsock;
+pub mod crypto;
 pub use micro_http::{
     Body, HttpServer, Method, Request, RequestError, Response, StatusCode, Version,
 };

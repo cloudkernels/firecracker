@@ -17,6 +17,7 @@ use crate::vmm_config::metrics::{init_metrics, MetricsConfig, MetricsConfigError
 use crate::vmm_config::mmds::{MmdsConfig, MmdsConfigError};
 use crate::vmm_config::net::*;
 use crate::vmm_config::vsock::*;
+use crate::vmm_config::crypto::*;
 use crate::vstate::vcpu::VcpuConfig;
 use mmds::ns::MmdsNetworkStack;
 use utils::net::ipv4addr::is_link_local_valid;
@@ -48,6 +49,8 @@ pub enum Error {
     VmConfig(VmConfigError),
     /// Vsock device configuration error.
     VsockDevice(VsockConfigError),
+    /// Crypto device configuration error.
+    CryptoDevice(CryptoError),
 }
 
 /// Used for configuring a vmm from one single json passed to the Firecracker process.
@@ -71,6 +74,8 @@ pub struct VmmConfig {
     net_devices: Vec<NetworkInterfaceConfig>,
     #[serde(rename = "vsock")]
     vsock_device: Option<VsockDeviceConfig>,
+    #[serde(rename = "crypto")]
+    crypto_devices: Option<CryptoDeviceConfig>,
 }
 
 /// A data structure that encapsulates the device configurations
@@ -93,6 +98,8 @@ pub struct VmResources {
     pub mmds_config: Option<MmdsConfig>,
     /// Whether or not to load boot timer device.
     pub boot_timer: bool,
+    /// The crypto devices.
+    pub crypto_builder: CryptoBuilder,
 }
 
 impl VmResources {
@@ -152,6 +159,13 @@ impl VmResources {
                 .set_mmds_config(mmds_config)
                 .map_err(Error::MmdsConfig)?;
         }
+
+        for crypto_config in vmm_config.crypto_devices.into_iter() {
+            resources
+                .build_crypto_device(crypto_config)
+                .map_err(Error::CryptoDevice)?;
+        }
+
 
         Ok(resources)
     }
@@ -319,6 +333,14 @@ impl VmResources {
         })
     }
 
+    /// Builds a crypto device to be attached when the VM starts
+    pub fn build_crypto_device(
+        &mut self,
+        crypto_device_config: CryptoDeviceConfig,
+    ) -> Result<CryptoError> {
+        self.crypto_builder.insert(crypto_device_config)
+    }
+
     /// Sets a vsock device to be attached when the VM starts.
     pub fn set_vsock_device(&mut self, config: VsockDeviceConfig) -> Result<VsockConfigError> {
         self.vsock.insert(config)
@@ -362,6 +384,13 @@ mod tests {
     use logger::{LevelFilter, LOGGER};
     use utils::net::mac::MacAddr;
     use utils::tempfile::TempFile;
+    use vmm_config::boot_source::{BootConfig, BootSourceConfig, DEFAULT_KERNEL_CMDLINE};
+    use vmm_config::drive::{BlockBuilder, BlockDeviceConfig};
+    use vmm_config::machine_config::{CpuFeaturesTemplate, VmConfig, VmConfigError};
+    use vmm_config::net::{NetBuilder, NetworkInterfaceConfig};
+    use vmm_config::vsock::tests::default_config;
+    use vmm_config::RateLimiterConfig;
+    use vstate::VcpuConfig;
 
     fn default_net_cfg() -> NetworkInterfaceConfig {
         NetworkInterfaceConfig {

@@ -613,6 +613,34 @@ paths:
           schema:
             $ref: "#/definitions/Error"
 
+  /crypto:
+    put:
+      summary: Creates/updates a crypto device. Pre-boot only.
+      description:
+        The first call creates the device with the configuration specified
+        in body. Subsequent calls will update the device configuration.
+        May fail if update is not possible.
+      oprationId: putGuestCrypto
+      parameters:
+        - name: body
+          in: body
+          description: Guest crypto device properties
+          required: true
+          schema:
+            $ref: "#/definitions/Crypto"
+      responses:
+        204:
+          description: Crypto device created/updated
+        400:
+          description: Crypto device cannot be created due to bad input
+          schema:
+            $ref: "#/definitions/Error"
+        default:
+          description: Internal server error
+          schema:
+            $ref: "#/definitions/Error"
+
+
 definitions:
   Balloon:
     type: object
@@ -776,6 +804,18 @@ definitions:
         type: string
         description: A description of the error condition
         readOnly: true
+
+  Crypto:
+    type: object
+    required:
+      - crypto_dev_id
+      - host_crypto_dev
+    properties:
+      crypto_dev_id:
+        type: string
+      host_crypto_dev:
+        type: string
+        description: Path to the host crypto device
 
   InstanceActionInfo:
     type: object
