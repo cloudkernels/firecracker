@@ -20,6 +20,7 @@ use request::snapshot::parse_patch_vm_state;
 #[cfg(target_arch = "x86_64")]
 use request::snapshot::parse_put_snapshot;
 use request::vsock::parse_put_vsock;
+use request::crypto::parse_put_crypto;
 use ApiServer;
 
 use vmm::rpc_interface::{VmmAction, VmmActionError};
@@ -65,6 +66,7 @@ impl ParsedRequest {
             #[cfg(target_arch = "x86_64")]
             (Method::Put, "snapshot", Some(body)) => parse_put_snapshot(body, path_tokens.get(1)),
             (Method::Put, "vsock", Some(body)) => parse_put_vsock(body),
+            (Method::Put, "crypto", Some(body)) => parse_put_crypto(body, path_tokens.get(1)),
             (Method::Put, _, None) => method_to_error(Method::Put),
             (Method::Patch, "drives", Some(body)) => parse_patch_drive(body, path_tokens.get(1)),
             (Method::Patch, "machine-config", Some(body)) => parse_patch_machine_config(body),

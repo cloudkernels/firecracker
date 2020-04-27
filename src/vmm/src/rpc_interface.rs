@@ -34,6 +34,7 @@ use vmm_config::mmds::{MmdsConfig, MmdsConfigError};
 use vmm_config::net::{
     NetworkInterfaceConfig, NetworkInterfaceError, NetworkInterfaceUpdateConfig,
 };
+use vmm_config::crypto::{CryptoDeviceConfig, CryptoError};
 #[cfg(target_arch = "x86_64")]
 use vmm_config::snapshot::{CreateSnapshotParams, LoadSnapshotParams, SnapshotType};
 use vmm_config::vsock::{VsockConfigError, VsockDeviceConfig};
@@ -96,6 +97,9 @@ pub enum VmmAction {
     /// Update a network interface, after microVM start. Currently, the only updatable properties
     /// are the RX and TX rate limiters.
     UpdateNetworkInterface(NetworkInterfaceUpdateConfig),
+    /// Add a new crypto device or update one that already exists using the `CryptoDeviceConfig` as
+    /// input. This action can only be called before the microVM has booted.
+    InsertCryptoDevice(CryptoDeviceConfig),
 }
 
 /// Wrapper for all errors associated with VMM actions.
@@ -132,6 +136,8 @@ pub enum VmmActionError {
     StartMicrovm(StartMicrovmError),
     /// The action `SetVsockDevice` failed because of bad user input.
     VsockConfig(VsockConfigError),
+    /// The action `InsertCryptoDevice`failed because of bad user input.
+    CryptoConfig(CryptoError),
 }
 
 impl Display for VmmActionError {
@@ -165,6 +171,7 @@ impl Display for VmmActionError {
                 StartMicrovm(err) => err.to_string(),
                 // The action `SetVsockDevice` failed because of bad user input.
                 VsockConfig(err) => err.to_string(),
+                CryptoConfig(err) => err.to_string(),
             }
         )
     }
@@ -278,6 +285,11 @@ impl<'a> PrebootApiController<'a> {
                 .build_net_device(netif_body)
                 .map(|_| VmmData::Empty)
                 .map_err(VmmActionError::NetworkConfig),
+            InsertCryptoDevice(crypto_device_config) => self
+                .vm_resources
+                .build_crypto_device(crypto_device_config)
+                .map(|_| VmmData::Empty)
+                .map_err(VmmActionError::CryptoConfig),
             #[cfg(target_arch = "x86_64")]
             LoadSnapshot(snapshot_load_cfg) => self
                 .load_snapshot(&snapshot_load_cfg)
@@ -381,6 +393,7 @@ impl RuntimeApiController {
             | ConfigureMetrics(_)
             | InsertBlockDevice(_)
             | InsertNetworkDevice(_)
+            | InsertCryptoDevice(_)
             | SetVsockDevice(_)
             | SetMmdsConfiguration(_)
             | SetVmConfiguration(_) => Err(VmmActionError::OperationNotSupportedPostBoot),

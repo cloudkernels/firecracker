@@ -16,6 +16,7 @@ pub mod net;
 pub mod persist;
 mod queue;
 pub mod vsock;
+pub mod crypto;
 
 pub use self::block::*;
 pub use self::device::*;
@@ -24,6 +25,7 @@ pub use self::net::*;
 pub use self::persist::*;
 pub use self::queue::*;
 pub use self::vsock::*;
+pub use self::crypto::*;
 
 /// When the driver initializes the device, it lets the device know about the
 /// completed stages using the Device Status Field.
@@ -46,6 +48,7 @@ mod device_status {
 /// Type 0 is not used by virtio. Use it as wildcard for non-virtio devices
 pub const TYPE_NET: u32 = 1;
 pub const TYPE_BLOCK: u32 = 2;
+pub const TYPE_CRYPTO: u32 = 20;
 
 /// Interrupt flags (re: interrupt status & acknowledge registers).
 /// See linux/virtio_mmio.h.

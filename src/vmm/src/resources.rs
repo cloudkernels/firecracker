@@ -18,6 +18,7 @@ use vmm_config::metrics::{init_metrics, MetricsConfig, MetricsConfigError};
 use vmm_config::mmds::{MmdsConfig, MmdsConfigError};
 use vmm_config::net::*;
 use vmm_config::vsock::*;
+use vmm_config::crypto::*;
 use vstate::VcpuConfig;
 
 type Result<E> = std::result::Result<(), E>;
@@ -43,6 +44,8 @@ pub enum Error {
     VsockDevice(VsockConfigError),
     /// MMDS configuration error.
     MmdsConfig(MmdsConfigError),
+    /// Crypto device configuration error.
+    CryptoDevice(CryptoError),
 }
 
 /// Used for configuring a vmm from one single json passed to the Firecracker process.
@@ -64,6 +67,8 @@ pub struct VmmConfig {
     vsock_device: Option<VsockDeviceConfig>,
     #[serde(rename = "mmds-config")]
     mmds_config: Option<MmdsConfig>,
+    #[serde(rename = "crypto")]
+    crypto_devices: Option<CryptoDeviceConfig>,
 }
 
 /// A data structure that encapsulates the device configurations
@@ -82,6 +87,8 @@ pub struct VmResources {
     pub net_builder: NetBuilder,
     /// The configuration for `MmdsNetworkStack`.
     pub mmds_config: Option<MmdsConfig>,
+    /// The crypto devices.
+    pub crypto_builder: CryptoBuilder,
 }
 
 impl VmResources {
@@ -135,6 +142,13 @@ impl VmResources {
                 .set_mmds_config(mmds_config)
                 .map_err(Error::MmdsConfig)?;
         }
+
+        for crypto_config in vmm_config.crypto_devices.into_iter() {
+            resources
+                .build_crypto_device(crypto_config)
+                .map_err(Error::CryptoDevice)?;
+        }
+
 
         Ok(resources)
     }
@@ -264,6 +278,14 @@ impl VmResources {
                 None => (),
             };
         })
+    }
+
+    /// Builds a crypto device to be attached when the VM starts
+    pub fn build_crypto_device(
+        &mut self,
+        crypto_device_config: CryptoDeviceConfig,
+    ) -> Result<CryptoError> {
+        self.crypto_builder.insert(crypto_device_config)
     }
 
     /// Sets a vsock device to be attached when the VM starts.
