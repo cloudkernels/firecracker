@@ -19,6 +19,7 @@ use crate::request::snapshot::parse_patch_vm_state;
 #[cfg(target_arch = "x86_64")]
 use crate::request::snapshot::parse_put_snapshot;
 use crate::request::vsock::parse_put_vsock;
+use crate::request::crypto::parse_put_crypto;
 use crate::ApiServer;
 use micro_http::{Body, Method, Request, Response, StatusCode, Version};
 
@@ -66,6 +67,7 @@ impl ParsedRequest {
             #[cfg(target_arch = "x86_64")]
             (Method::Put, "snapshot", Some(body)) => parse_put_snapshot(body, path_tokens.get(1)),
             (Method::Put, "vsock", Some(body)) => parse_put_vsock(body),
+            (Method::Put, "crypto", Some(body)) => parse_put_crypto(body, path_tokens.get(1)),
             (Method::Put, _, None) => method_to_error(Method::Put),
             (Method::Patch, "drives", Some(body)) => parse_patch_drive(body, path_tokens.get(1)),
             (Method::Patch, "machine-config", Some(body)) => parse_patch_machine_config(body),

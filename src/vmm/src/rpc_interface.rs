@@ -28,6 +28,7 @@ use crate::vmm_config::net::{
 #[cfg(target_arch = "x86_64")]
 use crate::vmm_config::snapshot::{CreateSnapshotParams, LoadSnapshotParams, SnapshotType};
 use crate::vmm_config::vsock::{VsockConfigError, VsockDeviceConfig};
+use crate::vmm_config::crypto::{CryptoDeviceConfig, CryptoError};
 use arch::DeviceType;
 use devices::virtio::{Block, MmioTransport, Net, TYPE_BLOCK, TYPE_NET};
 use logger::{info, update_metric_with_elapsed_time, METRICS};
@@ -92,6 +93,9 @@ pub enum VmmAction {
     /// Update a network interface, after microVM start. Currently, the only updatable properties
     /// are the RX and TX rate limiters.
     UpdateNetworkInterface(NetworkInterfaceUpdateConfig),
+    /// Add a new crypto device or update one that already exists using the `CryptoDeviceConfig` as
+    /// input. This action can only be called before the microVM has booted.
+    InsertCryptoDevice(CryptoDeviceConfig),
 }
 
 /// Wrapper for all errors associated with VMM actions.
@@ -128,6 +132,8 @@ pub enum VmmActionError {
     StartMicrovm(StartMicrovmError),
     /// The action `SetVsockDevice` failed because of bad user input.
     VsockConfig(VsockConfigError),
+    /// The action `InsertCryptoDevice`failed because of bad user input.
+    CryptoConfig(CryptoError),
 }
 
 impl Display for VmmActionError {
@@ -161,6 +167,7 @@ impl Display for VmmActionError {
                 StartMicrovm(err) => err.to_string(),
                 // The action `SetVsockDevice` failed because of bad user input.
                 VsockConfig(err) => err.to_string(),
+                CryptoConfig(err) => err.to_string(),
             }
         )
     }
@@ -295,7 +302,12 @@ impl<'a> PrebootApiController<'a> {
                 .set_mmds_config(mmds_config)
                 .map(|_| VmmData::Empty)
                 .map_err(VmmActionError::MmdsConfig),
-            StartMicroVm => builder::build_microvm_for_boot(
+            InsertCryptoDevice(crypto_device_config) => self
+                .vm_resources
+                .build_crypto_device(crypto_device_config)
+                .map(|_| VmmData::Empty)
+                .map_err(VmmActionError::CryptoConfig),
+            StartMicroVm => super::builder::build_microvm_for_boot(
                 &self.vm_resources,
                 &mut self.event_manager,
                 &self.seccomp_filter,
@@ -379,6 +391,7 @@ impl RuntimeApiController {
             | ConfigureMetrics(_)
             | InsertBlockDevice(_)
             | InsertNetworkDevice(_)
+            | InsertCryptoDevice(_)
             | SetVsockDevice(_)
             | SetMmdsConfiguration(_)
             | SetVmConfiguration(_) => Err(VmmActionError::OperationNotSupportedPostBoot),
