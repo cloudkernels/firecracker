@@ -31,7 +31,7 @@ use cpuid::common::is_same_model;
 #[cfg(target_arch = "aarch64")]
 use devices::legacy::RTCDevice;
 use devices::legacy::Serial;
-use devices::virtio::{Balloon, Block, MmioTransport, Net, VirtioDevice, Vsock, VsockUnixBackend};
+use devices::virtio::{Balloon, Block, Crypto, MmioTransport, Net, VirtioDevice, Vsock, VsockUnixBackend};
 use event_manager::{MutEventSubscriber, SubscriberOps};
 use kernel::cmdline::Cmdline as KernelCmdline;
 #[cfg(target_arch = "aarch64")]
@@ -359,6 +359,12 @@ pub fn build_microvm_for_boot(
     if let Some(unix_vsock) = vm_resources.vsock.get() {
         attach_unixsock_vsock_device(&mut vmm, &mut boot_cmdline, unix_vsock, event_manager)?;
     }
+    attach_crypto_devices(
+        &mut vmm,
+        &mut boot_cmdline,
+        vm_resources.crypto_builder.list.iter(),
+        event_manager
+    )?;
 
     #[cfg(target_arch = "aarch64")]
     attach_legacy_devices_aarch64(event_manager, &mut vmm, &mut boot_cmdline).map_err(Internal)?;
@@ -890,6 +896,20 @@ fn attach_balloon_device(
     let id = String::from(balloon.lock().expect("Poisoned lock").id());
     // The device mutex mustn't be locked here otherwise it will deadlock.
     attach_virtio_device(event_manager, vmm, id, balloon.clone(), cmdline)
+}
+
+fn attach_crypto_devices<'a>(
+    vmm: &mut Vmm,
+    cmdline: &mut KernelCmdline,
+    crypto_devices: impl Iterator<Item = &'a Arc<Mutex<Crypto>>>,
+    event_manager: &mut EventManager,
+) -> std::result::Result<(), StartMicrovmError> {
+    for crypto_device in crypto_devices {
+        let id = crypto_device.lock().expect("Poisoned lock").id().clone();
+        attach_virtio_device(event_manager, vmm, id, crypto_device.clone(), cmdline)?;
+    }
+
+    Ok(())
 }
 
 // Adds `O_NONBLOCK` to the stdout flags.

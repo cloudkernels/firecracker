@@ -54,6 +54,9 @@ RUN apt-get update \
         screen \
         tzdata \
         npm \
+        clang \
+        libclang-dev \
+        llvm-dev \
     && python3 -m pip install \
         setuptools \
         wheel \

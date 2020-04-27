@@ -53,7 +53,9 @@ RUN apt-get update \
         python3-venv    \
         zlib1g-dev \
         screen \
-        tzdata \
+        clang \
+        libclang-dev \
+        llvm-dev \
     && python3 -m pip install \
         setuptools \
         setuptools_rust \
