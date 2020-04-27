@@ -58,6 +58,9 @@ RUN apt-get update \
         bc \
         flex \
         bison \
+        clang \
+        libclang-dev \
+        llvm-dev \
     && python3 -m pip install \
         setuptools \
         setuptools_rust \

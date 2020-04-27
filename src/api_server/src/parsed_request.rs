@@ -20,6 +20,7 @@ use crate::request::net::{parse_patch_net, parse_put_net};
 use crate::request::snapshot::parse_patch_vm_state;
 use crate::request::snapshot::parse_put_snapshot;
 use crate::request::vsock::parse_put_vsock;
+use crate::request::crypto::parse_put_crypto;
 use crate::ApiServer;
 use micro_http::{Body, Method, Request, Response, StatusCode, Version};
 
@@ -79,6 +80,7 @@ impl ParsedRequest {
             (Method::Put, "shutdown-internal", None) => Ok(ParsedRequest::ShutdownInternal),
             (Method::Put, "snapshot", Some(body)) => parse_put_snapshot(body, path_tokens.get(1)),
             (Method::Put, "vsock", Some(body)) => parse_put_vsock(body),
+            (Method::Put, "crypto", Some(body)) => parse_put_crypto(body, path_tokens.get(1)),
             (Method::Put, _, None) => method_to_error(Method::Put),
             (Method::Patch, "balloon", Some(body)) => parse_patch_balloon(body, path_tokens.get(1)),
             (Method::Patch, "drives", Some(body)) => parse_patch_drive(body, path_tokens.get(1)),

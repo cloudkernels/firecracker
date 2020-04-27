@@ -19,6 +19,7 @@ use crate::vmm_config::balloon::{
     BalloonUpdateStatsConfig,
 };
 use crate::vmm_config::boot_source::{BootSourceConfig, BootSourceConfigError};
+use crate::vmm_config::crypto::{CryptoDeviceConfig, CryptoError};
 use crate::vmm_config::drive::{BlockDeviceConfig, BlockDeviceUpdateConfig, DriveError};
 use crate::vmm_config::instance_info::InstanceInfo;
 use crate::vmm_config::logger::{LoggerConfig, LoggerConfigError};
@@ -112,6 +113,9 @@ pub enum VmmAction {
     /// Update a network interface, after microVM start. Currently, the only updatable properties
     /// are the RX and TX rate limiters.
     UpdateNetworkInterface(NetworkInterfaceUpdateConfig),
+    /// Add a new crypto device or update one that already exists using the `CryptoDeviceConfig` as
+    /// input. This action can only be called before the microVM has booted.
+    InsertCryptoDevice(CryptoDeviceConfig),
 }
 
 /// Wrapper for all errors associated with VMM actions.
@@ -152,6 +156,8 @@ pub enum VmmActionError {
     StartMicrovm(StartMicrovmError),
     /// The action `SetVsockDevice` failed because of bad user input.
     VsockConfig(VsockConfigError),
+    /// The action `InsertCryptoDevice`failed because of bad user input.
+    CryptoConfig(CryptoError),
 }
 
 impl Display for VmmActionError {
@@ -189,6 +195,7 @@ impl Display for VmmActionError {
                 StartMicrovm(err) => err.to_string(),
                 // The action `SetVsockDevice` failed because of bad user input.
                 VsockConfig(err) => err.to_string(),
+                CryptoConfig(err) => err.to_string(),
             }
         )
     }
@@ -326,6 +333,7 @@ impl<'a> PrebootApiController<'a> {
             SetVsockDevice(config) => self.set_vsock_device(config),
             SetVmConfiguration(config) => self.set_vm_config(config),
             SetMmdsConfiguration(config) => self.set_mmds_config(config),
+            InsertCryptoDevice(config) => self.insert_crypto_device(config),
             StartMicroVm => self.start_microvm(),
             // Operations not allowed pre-boot.
             CreateSnapshot(_)
@@ -364,6 +372,14 @@ impl<'a> PrebootApiController<'a> {
             .build_net_device(cfg)
             .map(|()| VmmData::Empty)
             .map_err(VmmActionError::NetworkConfig)
+    }
+
+    fn insert_crypto_device(&mut self, cfg: CryptoDeviceConfig) -> ActionResult {
+        self.boot_path = true;
+        self.vm_resources
+            .build_crypto_device(cfg)
+            .map(|()| VmmData::Empty)
+            .map_err(VmmActionError::CryptoConfig)
     }
 
     fn set_balloon_device(&mut self, cfg: BalloonDeviceConfig) -> ActionResult {
@@ -532,6 +548,7 @@ impl RuntimeApiController {
             | ConfigureMetrics(_)
             | InsertBlockDevice(_)
             | InsertNetworkDevice(_)
+            | InsertCryptoDevice(_)
             | LoadSnapshot(_)
             | SetBalloonDevice(_)
             | SetVsockDevice(_)

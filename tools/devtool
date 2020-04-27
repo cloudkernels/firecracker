@@ -69,10 +69,10 @@
 #     would help with reproducible builds (in addition to pinning Cargo.lock)
 
 # Development container image (without tag)
-DEVCTR_IMAGE_NO_TAG="public.ecr.aws/firecracker/fcuvm"
+DEVCTR_IMAGE_NO_TAG="nubificus/fcuvm"
 
 # Development container tag
-DEVCTR_IMAGE_TAG="v31"
+DEVCTR_IMAGE_TAG="vaccel"
 
 # Development container image (name:tag)
 # This should be updated whenever we upgrade the development container.
@@ -585,6 +585,7 @@ run_devctr() {
         --volume "$FC_ROOT_DIR:$CTR_FC_ROOT_DIR:z" \
         --env OPT_LOCAL_IMAGES_PATH="$(dirname "$CTR_MICROVM_IMAGES_DIR")" \
         --env PYTHONDONTWRITEBYTECODE=1 \
+	--env PKG_CONFIG_PATH=/usr/local/share \
         "$DEVCTR_IMAGE" "${ctr_args[@]}"
 }
 
