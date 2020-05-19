@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use super::Vmm;
 
 use super::Error as VmmError;
-use crate::builder::{self, StartMicrovmError};
+use crate::builder::{StartMicrovmError};
 #[cfg(target_arch = "x86_64")]
 use crate::persist::{self, CreateSnapshotError, LoadSnapshotError};
 use crate::resources::VmResources;

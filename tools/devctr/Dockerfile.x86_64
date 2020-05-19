@@ -47,6 +47,9 @@ RUN apt-get update \
         python3-venv    \
         zlib1g-dev \
         screen \
+        clang \
+        libclang-dev \
+        llvm-dev \
     && python3 -m pip install \
         setuptools \
         wheel \
@@ -85,6 +88,12 @@ RUN mkdir "$TMP_BUILD_DIR" \
 # Add the tini init binary.
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION_TAG}/tini-static-amd64 /sbin/tini
 RUN chmod +x /sbin/tini
+
+# Install vaccel runtime
+RUN git clone https://github.com/cloudkernels/vaccelrt.git && \
+	cd vaccelrt && \
+	mkdir build && cd build && \
+	cmake .. && make -C src install
 
 WORKDIR "$FIRECRACKER_SRC_DIR"
 ENTRYPOINT ["/sbin/tini", "--"]

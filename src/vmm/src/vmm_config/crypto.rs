@@ -84,7 +84,6 @@ impl CryptoBuilder {
     pub fn create_crypto(cfg: CryptoDeviceConfig) -> Result<Crypto> {
         devices::virtio::crypto::Crypto::new(
             cfg.crypto_dev_id,
-            cfg.host_crypto_dev,
         )
         .map_err(CryptoError::CreateCryptoDevice)
     }

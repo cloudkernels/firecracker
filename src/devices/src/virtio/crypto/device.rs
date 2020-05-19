@@ -1,6 +1,6 @@
 use crate::virtio::crypto::Error;
 use crate::virtio::crypto::Result;
-use crate::virtio::crypto::{DATAQ_INDEX, CONTROLQ_INDEX, NUM_QUEUES, QUEUE_SIZES, request::*};
+use crate::virtio::crypto::{NUM_QUEUES, QUEUE_SIZES, request::*};
 use crate::virtio::{
     ActivateResult, DeviceState, Queue, VirtioDevice, TYPE_CRYPTO, VIRTIO_MMIO_INT_VRING
 };
@@ -10,15 +10,15 @@ use std::cmp;
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::collections::HashMap;
 use utils::eventfd::EventFd;
-use logger::{error, info};
+use vaccel_bindings::*;
+use logger::{error, debug, info};
 
 use virtio_gen::virtio_crypto::*;
-use vm_memory::{ByteValued, GuestMemoryMmap};
+use vm_memory::{ByteValued, GuestMemoryMmap, Bytes};
 
 use crate::Error as DeviceError;
-
-use crypto_ioctls::Crypto as HostCrypto;
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -26,7 +26,7 @@ pub struct ConfigSpace {
     pub status: __le32,
     pub max_dataqueues: __le32,
     pub crypto_services: __le32,
-    
+
     /* algorithms masks */
     pub cipher_algo_l: __le32,
     pub cipher_algo_h: __le32,
@@ -71,7 +71,6 @@ unsafe impl ByteValued for ConfigSpace {}
 
 pub struct Crypto {
     pub(crate) id: String,
-    host_dev: HostCrypto,
 
     // Virtio fields.
     pub(crate) avail_features: u64,
@@ -85,17 +84,17 @@ pub struct Crypto {
     pub(crate) interrupt_status: Arc<AtomicUsize>,
     interrupt_evt: EventFd,
     pub(crate) device_state: DeviceState,
+
+    pub(crate) sessions: HashMap<u32, vaccel_session>,
 }
 
 
 impl Crypto {
-    pub fn new(id: String, host_device: String) -> Result<Self> {
-        // Try to open the device
-        let host_dev = crypto_ioctls::Crypto::new(&host_device)?;
+    pub fn new(id: String) -> Result<Self> {
 
         // No stateless atm (until I figure out what that is)
         let avail_features = 1u64 << VIRTIO_F_VERSION_1;
-        
+
         let queues = QUEUE_SIZES.iter().map(|&s| Queue::new(s)).collect();
 
         let mut queue_evts = Vec::new();
@@ -109,7 +108,6 @@ impl Crypto {
 
         Ok(Crypto {
             id,
-            host_dev,
             avail_features,
             acked_features: 0u64,
             config_space,
@@ -119,6 +117,7 @@ impl Crypto {
             interrupt_status: Arc::new(AtomicUsize::new(0)),
             interrupt_evt: EventFd::new(libc::EFD_NONBLOCK).map_err(Error::EventFd)?,
             device_state: DeviceState::Inactive,
+            sessions: HashMap::new()
         })
     }
 
@@ -126,62 +125,63 @@ impl Crypto {
         &self.id
     }
 
-    pub(crate) fn process_control_queue_event(&mut self) {
-        if let Err(e) = self.queue_evts[CONTROLQ_INDEX].read() {
-            error!("crypto: failed to get control queue event: {:?}", e);
-        } else {
-            self.process_control_queue();
-        }
-    }
-
-    pub(crate) fn process_data_queue_event(&mut self) {
-        if let Err(e) = self.queue_evts[DATAQ_INDEX].read() {
+    pub(crate) fn process_queue_event(&mut self) {
+        if let Err(e) = self.queue_evts[0].read() {
             error!("crypto: failed to get data queue event: {:?}", e);
         } else {
-            self.process_data_queue();
-        }
-    }
-
-    pub(crate) fn process_control_queue(&mut self) {
-        let mem = match self.device_state {
-            DeviceState::Activated(ref mem) => mem,
-            DeviceState::Inactive => unreachable!(),
-        };
-
-        let queue = &mut self.queues[CONTROLQ_INDEX];
-        while let Some(head) = queue.pop(mem) {
-            match handle_controlq_request(&head, mem, &self.host_dev) {
-                Ok(size) => {
-                    queue.add_used(mem, head.index, size);
-                }
-                Err(e) => {
-                    error!("Failed to parse available descriptor chain: {:?}", e);
-                }
+            if self.process_queue() {
+                let _ = self.signal_used_queue();
             }
         }
-
-        let _ = self.signal_used_queue();
     }
 
-    pub(crate) fn process_data_queue(&mut self) {
+    pub(crate) fn process_queue(&mut self) -> bool {
+        debug!("crypto: processing data queue");
         let mem = match self.device_state {
             DeviceState::Activated(ref mem) => mem,
             DeviceState::Inactive => unreachable!(),
         };
 
-        let queue = &mut self.queues[DATAQ_INDEX];
+        let queue = &mut self.queues[0];
+        let mut used_any = false;
         while let Some(head) = queue.pop(mem) {
-            match handle_dataq_request(&head, mem, &self.host_dev) {
-                Ok(size) => {
-                    queue.add_used(mem, head.index, size);
+            let size;
+            match Request::parse(&head, mem) {
+                Ok(mut request) => {
+                    let status =
+                        match request.execute(&mut self.sessions, mem) {
+                            Ok(l) => {
+                                size = l;
+                                VIRTIO_CRYPTO_OK
+                            },
+                            Err(err) => {
+                                error!("Failed to execute request: {:?}", err);
+                                // We need 4 bytes to write the status
+                                size = 4;
+                                1u32
+                            }
+                        };
+
+                    // We can unwrap here, since we have already checked that
+                    // there is a valid status descriptor while parsing
+                    mem.write_obj(status, request.status_addr).unwrap();
                 }
                 Err(e) => {
                     error!("Failed to handle data queue on descriptor chain: {:?}", e);
+                    size = 0;
                 }
             }
+
+            queue.add_used(mem, head.index, size).unwrap_or_else(|e| {
+                error!(
+                    "Failed to add available descriptor head {}: {}",
+                    head.index, e
+                )
+            });
+            used_any = true;
         }
 
-        let _ = self.signal_used_queue();
+        used_any
     }
 
     pub(crate) fn signal_used_queue(&self) -> result::Result<(), DeviceError> {

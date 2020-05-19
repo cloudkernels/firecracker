@@ -825,6 +825,11 @@ pub mod tests {
     use kernel::cmdline::Cmdline;
     use polly::event_manager::EventManager;
     use utils::tempfile::TempFile;
+    use vmm_config::boot_source::DEFAULT_KERNEL_CMDLINE;
+    use vmm_config::drive::{BlockBuilder, BlockDeviceConfig};
+    use vmm_config::net::{NetBuilder, NetworkInterfaceConfig};
+    use vmm_config::vsock::tests::default_config;
+    use vmm_config::vsock::{VsockBuilder, VsockDeviceConfig};
 
     pub(crate) struct CustomBlockConfig {
         drive_id: String,

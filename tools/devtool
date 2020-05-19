@@ -73,7 +73,7 @@
 # Development container image (name:tag)
 # This should be updated whenever we upgrade the development container.
 # (Yet another step on our way to reproducible builds.)
-DEVCTR_IMAGE="fcuvm/dev:v17"
+DEVCTR_IMAGE="nubificus/fcuvm:v0.23"
 
 # Naming things is hard
 MY_NAME="Firecracker $(basename "$0")"
@@ -372,6 +372,7 @@ run_devctr() {
         --volume "$FC_ROOT_DIR:$CTR_FC_ROOT_DIR:z" \
         --env OPT_LOCAL_IMAGES_PATH="$(dirname "$CTR_MICROVM_IMAGES_DIR")" \
         --env PYTHONDONTWRITEBYTECODE=1 \
+	--env PKG_CONFIG_PATH=/usr/local/share \
         "$DEVCTR_IMAGE" "${ctr_args[@]}"
 }
 

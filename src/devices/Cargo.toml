@@ -20,6 +20,4 @@ rate_limiter = { path = "../rate_limiter" }
 snapshot = { path = "../snapshot" }
 utils = { path = "../utils" }
 virtio_gen = { path = "../virtio_gen" }
-crypto-bindings = { git = "https://github.com/cloudkernels/crypto-bindings" }
-crypto-ioctls = { git = "https://github.com/cloudkernels/crypto-ioctls" }
-vmm-sys-util = ">=0.2.1"
+vaccel-bindings = { git = "https://github.com/bchalios/vaccel-bindings", branch = "master" }
