@@ -52,7 +52,7 @@ mod device_status {
 pub const TYPE_NET: u32 = 1;
 pub const TYPE_BLOCK: u32 = 2;
 pub const TYPE_BALLOON: u32 = 5;
-pub const TYPE_CRYPTO: u32 = 20;
+pub const TYPE_CRYPTO: u32 = 21;
 
 /// Interrupt flags (re: interrupt status & acknowledge registers).
 /// See linux/virtio_mmio.h.

@@ -16,7 +16,7 @@ pub const VIRTIO_ID_GPU: u32 = 16;
 pub const VIRTIO_ID_INPUT: u32 = 18;
 pub const VIRTIO_ID_VSOCK: u32 = 19;
 /* Added manually crypto id */
-pub const VIRTIO_ID_CRYPTO: u32 = 20;
+pub const VIRTIO_ID_CRYPTO: u32 = 21;
 pub const VIRTIO_CONFIG_S_ACKNOWLEDGE: u32 = 1;
 pub const VIRTIO_CONFIG_S_DRIVER: u32 = 2;
 pub const VIRTIO_CONFIG_S_DRIVER_OK: u32 = 4;
