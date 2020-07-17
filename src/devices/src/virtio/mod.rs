@@ -48,7 +48,7 @@ mod device_status {
 /// Type 0 is not used by virtio. Use it as wildcard for non-virtio devices
 pub const TYPE_NET: u32 = 1;
 pub const TYPE_BLOCK: u32 = 2;
-pub const TYPE_CRYPTO: u32 = 20;
+pub const TYPE_RNG: u32 = 4;
 
 /// Interrupt flags (re: interrupt status & acknowledge registers).
 /// See linux/virtio_mmio.h.

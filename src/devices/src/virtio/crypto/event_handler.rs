@@ -4,7 +4,7 @@ use polly::event_manager::{EventManager, Subscriber};
 use utils::epoll::{EpollEvent, EventSet};
 
 use crate::virtio::crypto::device::Crypto;
-use crate::virtio::{VirtioDevice, DATAQ_INDEX, CONTROLQ_INDEX};
+use crate::virtio::VirtioDevice;
 
 impl Crypto {
     fn process_activate_event(&self, event_manager: &mut EventManager) {
@@ -14,26 +14,13 @@ impl Crypto {
 
         event_manager
             .register(
-                self.queue_evts[DATAQ_INDEX].as_raw_fd(),
-                EpollEvent::new(EventSet::IN, self.queue_evts[DATAQ_INDEX].as_raw_fd() as u64),
+                self.queue_evts[0].as_raw_fd(),
+                EpollEvent::new(EventSet::IN, self.queue_evts[0].as_raw_fd() as u64),
                 self_subscriber.clone(),
             )
             .unwrap_or_else(|e| {
                 error!(
-                    "Failed to register crypto data queue with event manager: {:?}",
-                    e
-                );
-            });
-
-        event_manager
-            .register(
-                self.queue_evts[CONTROLQ_INDEX].as_raw_fd(),
-                EpollEvent::new(EventSet::IN, self.queue_evts[CONTROLQ_INDEX].as_raw_fd() as u64),
-                self_subscriber.clone(),
-            )
-            .unwrap_or_else(|e| {
-                error!(
-                    "Failed to register crypto control queue with event manager: {:?}",
+                    "Failed to register rng queue with event manager: {:?}",
                     e
                 );
             });
@@ -47,7 +34,7 @@ impl Crypto {
 }
 
 impl Subscriber for Crypto {
-    // handle an event for queue 
+    // handle an event for queue
     fn process(&mut self, event: &EpollEvent, evmgr: &mut EventManager) {
         let source = event.fd();
         let event_set = event.event_set();
@@ -62,13 +49,11 @@ impl Subscriber for Crypto {
         }
 
         if self.is_activated() {
-            let control_event = self.queue_evts[CONTROLQ_INDEX].as_raw_fd();
-            let data_event = self.queue_evts[DATAQ_INDEX].as_raw_fd();
+            let event = self.queue_evts[0].as_raw_fd();
             let activate_fd = self.activate_evt.as_raw_fd();
 
             match source {
-                _ if control_event == source => self.process_control_queue_event(),
-                _ if data_event == source => self.process_data_queue_event(),
+                _ if event == source => self.process_queue_event(),
                 _ if activate_fd == source => self.process_activate_event(evmgr),
                 _ => warn!("Crypto: Spurious event received: {:?}", source),
             }
