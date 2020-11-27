@@ -1,0 +1,24 @@
+name: Build nubificus Firecracker fork
+
+on:
+  push:
+    branches:
+      - vaccel
+
+jobs:
+ build:
+  runs-on: ubuntu-latest
+  
+  strategy:
+    matrix:
+     build_type: [debug, release]
+
+
+  steps:
+  - name: Checkout code
+    uses: actions/checkout@v2
+    with:
+      ref: 'vaccel'
+
+  - name: Build
+    run: ./tools/devtool -y build -l gnu --${{ matrix.build_type}}
