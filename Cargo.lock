@@ -611,7 +611,7 @@ dependencies = [
 [[package]]
 name = "vaccel-bindings"
 version = "0.1.0"
-source = "git+https://github.com/bchalios/vaccel-bindings#65fdf8d59addff4a5982024fd9b0797ceb384153"
+source = "git+https://github.com/bchalios/vaccel-bindings#cab1a395c9b7a64bfbf9bb826b91080fea035dd2"
 dependencies = [
  "bindgen 0.53.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.68 (registry+https://github.com/rust-lang/crates.io-index)",
