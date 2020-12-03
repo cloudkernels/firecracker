@@ -1,0 +1,46 @@
+name: Build vAccel Firecracker
+
+on:
+  pull_request:
+  push:
+    branches:
+      - vaccel-0.23
+
+jobs:
+  build:
+    runs-on: [self-hosted, "${{ matrix.arch }}" ]
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+        build_type: [debug, release]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Find SHA
+        run: |
+          if [[ "${{github.event.pull_request.head.sha}}" != "" ]]
+          then
+            echo "ARTIFACT_SHA=$(echo ${{github.event.pull_request.head.sha}})" >> $GITHUB_ENV
+          else
+            echo "ARTIFACT_SHA=$(echo ${{github.sha}})" >> $GITHUB_ENV
+          fi
+
+      - name: Fetch latest docker image
+        run: docker pull nubificus/fcuvm:vaccel
+
+      - name: Build Firecracker
+        run: ./tools/devtool -y build -l gnu --${{ matrix.build_type}}
+
+      - name: Upload Kernel artifact
+        id: upload-artifact
+        if: steps.build-kernel.outputs.build_exit_code == 0
+        uses: cloudkernels/minio-upload@master
+        with:
+          url: https://s3.nubificus.co.uk
+          access-key: ${{ secrets.AWS_ACCESS_KEY }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          local-path: build/cargo_target/${{ matrix.arch }}-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
+          remote-path: nbfc-assets/github/firecracker/${{ env.ARTIFACT_SHA }}/${{ matrix.arch }}/${{ matrix.build_type}}/
