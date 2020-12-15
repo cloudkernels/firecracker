@@ -1,0 +1,48 @@
+name: Pull Request for vaccel-v0.23
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        build_type: [debug, release]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build Firecracker
+        run: ./tools/devtool -y build -l gnu --${{ matrix.build_type}}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact/@v2
+        with:
+          name: firecracker-${{ github.event.pull_request.head.sha }}-${{ matrix.build_type }}
+          path: build/cargo_target/x86_64-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
+
+  upload_artifact:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: minio/mc
+      env:
+        NBFC_S3_ACCESS: ${{ secrets.AWS_ACCESS_KEY }}
+        NBFC_S3_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    strategy:
+      matrix:
+        build_type: [debug, release]
+
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: firecracker-${{ github.event.pull_request.head.sha }}-${{ matrix.build_type }}
+
+    - name: Upload artifact to s3
+      run: |
+        mc alias set nbfc-rook https://s3.nubificus.co.uk $NBFC_S3_ACCESS $NBFC_S3_SECRET
+        mc cp firecracker nbfc-rook/nbfc-assets/github/firecracker/${{ github.event.pull_request.head.sha }}/${{ matrix.build_type}}/firecracker
