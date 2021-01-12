@@ -7,6 +7,8 @@ use vaccel_bindings::*;
 use crate::virtio::DescriptorChain;
 use crate::virtio::crypto::{Result, Error};
 
+use logger::debug;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AccelOp {
     CreateSessionGen,
@@ -44,6 +46,12 @@ pub struct Request {
     // type of the operation requested
     op_type: AccelOp,
 
+    // Length of "in" data
+    in_length: Option<GuestAddress>,
+
+    // Length of "out" data
+    out_length: Option<GuestAddress>,
+
     // VirtIO "in" data
     in_args: Vec<(GuestAddress, u32)>,
 
@@ -55,7 +63,7 @@ pub struct Request {
     out_bytes: usize,
 
     // Guest address for session id
-    pub sess_id_addr: Option<GuestAddress>, 
+    pub sess_id_addr: Option<GuestAddress>,
 
     // Guest address for status
     pub status_addr: GuestAddress,
@@ -96,6 +104,8 @@ impl Request {
         let mut request = Request {
             session_id: header.session_id,
             op_type: AccelOp::from(header.op),
+            in_length: None,
+            out_length: None,
             in_args: Vec::new(),
             out_args: Vec::new(),
             out_bytes: 0,
@@ -107,6 +117,29 @@ impl Request {
         let mut curr_desc = avail_desc.next_descriptor()
             .ok_or(Error::DescriptorChainTooShort)?;
 
+        if header.out_nr > 0 {
+            debug!("Getting length of output data GuestAddress");
+            if curr_desc.is_write_only() {
+                return Err(Error::UnexpectedWriteOnlyDescriptor);
+            }
+
+            request.out_length = Some(curr_desc.addr);
+            curr_desc = curr_desc.next_descriptor()
+                .ok_or(Error::DescriptorChainTooShort)?;
+        }
+
+        if header.in_nr > 0 {
+            debug!("Getting length of input data GuestAddress");
+            if curr_desc.is_write_only() {
+                return Err(Error::UnexpectedWriteOnlyDescriptor);
+            }
+
+            request.in_length = Some(curr_desc.addr);
+            curr_desc = curr_desc.next_descriptor()
+                .ok_or(Error::DescriptorChainTooShort)?;
+        }
+
+        debug!("We have: {:?} out args", header.out_nr);
         if header.out_nr > 0 && curr_desc.is_write_only() {
             return Err(Error::UnexpectedWriteOnlyDescriptor);
         }
@@ -119,6 +152,7 @@ impl Request {
             Err(e) => return Err(e),
         }
 
+        debug!("We have: {:?} in args", header.out_nr);
         if header.in_nr > 0 && !curr_desc.is_write_only() {
             return Err(Error::UnexpectedReadOnlyDescriptor);
         }
@@ -219,7 +253,7 @@ impl Request {
             Ok(()) => {
                 mem.write(&out_text_bytes[..out_text_len as usize], out_text_addr)
                     .map_err(Error::GuestMemory)?;
-                
+
                 mem.write(&out_imgname_bytes[..out_imgname_len as usize], out_imgname_addr)
                     .map_err(Error::GuestMemory)?;
 
