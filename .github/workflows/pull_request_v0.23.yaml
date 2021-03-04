@@ -1,14 +1,19 @@
 name: Pull Request for vaccel-v0.23
 
-on: [pull_request]
+on:
+  push:
+    branches: [ vaccel-0.23, vaccel-0.23-extend ]
+  pull_request:
+   
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: [self-hosted, "${{ matrix.arch }}" ]
     strategy:
       matrix:
+        arch: [x86_64, aarch64]
         build_type: [debug, release]
+      fail-fast: false
 
     steps:
       - name: Checkout code
@@ -20,8 +25,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact/@v2
         with:
-          name: firecracker-${{ github.event.pull_request.head.sha }}-${{ matrix.build_type }}
-          path: build/cargo_target/x86_64-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
+          name: firecracker-${{ github.event.pull_request.head.sha }}-${{ matrix.arch }}-${{ matrix.build_type }}
+          path: build/cargo_target/${{ matrix.arch }}-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
 
   upload_artifact:
     needs: build
@@ -34,15 +39,17 @@ jobs:
 
     strategy:
       matrix:
+        arch: [x86_64, aarch64]
         build_type: [debug, release]
+      fail-fast: false
 
     steps:
     - name: Download artifact
       uses: actions/download-artifact@v2
       with:
-        name: firecracker-${{ github.event.pull_request.head.sha }}-${{ matrix.build_type }}
+        name: firecracker-${{ github.event.pull_request.head.sha }}-${{ matrix.arch }}-${{ matrix.build_type }}
 
     - name: Upload artifact to s3
       run: |
         mc alias set nbfc-rook https://s3.nubificus.co.uk $NBFC_S3_ACCESS $NBFC_S3_SECRET
-        mc cp firecracker nbfc-rook/nbfc-assets/github/firecracker/${{ github.event.pull_request.head.sha }}/${{ matrix.build_type}}/firecracker
+        mc cp firecracker nbfc-rook/nbfc-assets/github/firecracker/${{ github.event.pull_request.head.sha }}/${{ matrix.arch }}/${{ matrix.build_type}}/firecracker
