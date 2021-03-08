@@ -3,6 +3,8 @@ name: Docker Image CI
 on:
   push:
     branches: [ vaccel-0.23, vaccel-0.23-extend ]
+    paths:
+      - '**/Dockerfile*'
   pull_request:
     branches: [ master ]
 
@@ -41,3 +43,21 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: "${{ steps.set-dockerfile-name.outputs.atag }}"
         dockerfile: ${{ steps.set-dockerfile-name.outputs.dfile }}
+
+  manifest:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - name: Login to dockerhub
+        id: login
+        run: |
+          docker login -u $DUSR -p $DPSWD
+        env:
+          DUSR: ${{ secrets.DOCKER_USERNAME }}
+          DPSWD: ${{ secrets.DOCKER_PASSWORD }}
+        
+      - name: Manifest images under one label
+        id: manifest-images
+        run: |
+          docker manifest create nubificus/fcuvm:vaccel --amend nubificus/fcuvm:x86_64 --amend nubificus/fcuvm:arm64
+          docker manifest push nubificus/fcuvm:vaccel
