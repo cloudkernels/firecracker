@@ -1,8 +1,6 @@
 name: Pull Request for vaccel-v0.23
 
 on:
-  push:
-    branches: [ vaccel-0.23, vaccel-0.23-extend ]
   pull_request:
    
 
