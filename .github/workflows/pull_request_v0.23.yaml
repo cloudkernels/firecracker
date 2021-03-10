@@ -31,4 +31,4 @@ jobs:
           access-key: ${{ secrets.AWS_ACCESS_KEY }}
           secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           local-path: build/cargo_target/${{ matrix.arch }}-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
-          remote-path: nbfc-assets/github/firecracker/${{ matrix.arch }}/${{ matrix.build_type}}/
+          remote-path: nbfc-assets/github/firecracker/${{ github.event.pull_request.head.sha }}/${{ matrix.arch }}/${{ matrix.build_type}}/
