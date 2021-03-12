@@ -45,7 +45,7 @@ jobs:
         dockerfile: ${{ steps.set-dockerfile-name.outputs.dfile }}
 
   manifest:
-    runs-on: self-hosted
+    runs-on: [ self-hosted, aarch64 ]
     needs: build
     steps:
       - name: Login to dockerhub
