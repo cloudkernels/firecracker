@@ -225,6 +225,34 @@ impl Request {
         }
     }
 
+    fn genop(
+        &self,
+        sess: &mut vaccel_session,
+        mem: &GuestMemoryMmap
+    ) -> Result<u32> {
+        let (out_addr, out_len) = self.in_args[0];
+        let mut out_args = vec![0u8; out_len as usize];
+        mem.read(&mut out_args, out_addr).map_err(Error::GuestMemory)?;
+
+        let (in_addr, in_len) = self.out_args[1];
+        let mut in_args = vec![0u8; in_len as usize];
+        mem.read(&mut in_args, in_addr).map_err(Error::GuestMemory)?;
+
+        match vaccel_bindings::gen_op(
+            sess,
+            &mut out_args,
+            &mut in_args,
+        ) {
+            Ok(()) => {
+                mem.write(&out_args[..out_len as usize], out_addr)
+                    .map_err(Error::GuestMemory)?;
+
+                Ok(out_len)
+            },
+            Err(_) => Err(Error::VaccelRuntime),
+        }
+    }
+
     fn image_classification_op(
         &self,
         sess: &mut vaccel_session,
@@ -289,6 +317,7 @@ impl Request {
                 VACCEL_IMG_CLASS => { self.image_classification_op(sess, mem) },
                 VACCEL_IMG_DETEC => { return Err(Error::VaccelRuntime) },
                 VACCEL_IMG_SEGME => { return Err(Error::VaccelRuntime) },
+                VACCEL_GEN_OP => { self.genop(sess, mem) },
                 _ => return Err(Error::VaccelRuntime),
             }
     }
