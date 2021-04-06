@@ -1,11 +1,12 @@
 use std::convert::From;
 use std::collections::HashMap;
 
-use vm_memory::{ByteValued, Bytes, GuestMemoryMmap, GuestAddress};
+use vm_memory::{ByteValued, Bytes, GuestMemoryMmap, GuestAddress, GuestMemory};
 use vaccel_bindings::*;
 
 use crate::virtio::DescriptorChain;
 use crate::virtio::crypto::{Result, Error};
+
 
 use logger::debug;
 
@@ -230,24 +231,56 @@ impl Request {
         sess: &mut vaccel_session,
         mem: &GuestMemoryMmap
     ) -> Result<u32> {
-        let (out_addr, out_len) = self.in_args[0];
-        let mut out_args = vec![0u8; out_len as usize];
-        mem.read(&mut out_args, out_addr).map_err(Error::GuestMemory)?;
 
-        let (in_addr, in_len) = self.out_args[1];
-        let mut in_args = vec![0u8; in_len as usize];
-        mem.read(&mut in_args, in_addr).map_err(Error::GuestMemory)?;
+        let mut out_args_new = Vec::new();
+        /* skip the internal VACCEL_GEN_OP op_arg */
+        for x in 1..self.out_args.len() {
+            let (out_addr, out_len) = self.out_args[x];
+            /*
+            let mut out_field = vec![0u8; out_len as usize];
+            mem.read(&mut out_field, out_addr).map_err(Error::GuestMemory)?;
+            println!("{:02X?}", out_field);*/
+            let ptr = mem.get_host_address(out_addr)
+                .map_err(Error::GuestMemory)?;
+
+            let arg = VAccelArg{
+                len : out_len as usize,
+                buf : ptr
+            };
+            out_args_new.push(arg);
+            debug!("We have: {:?} ", out_len);
+        }
+
+        let mut total_len = 0;
+        let mut in_args_new = Vec::new();
+        for x in 0..self.in_args.len() {
+            let (in_addr, in_len) = self.in_args[x];
+            /*let mut in_field = vec![0u8;in_len as usize];
+            mem.read(&mut in_field, in_addr).map_err(Error::GuestMemory)?;
+
+            println!("{:02X?}", in_field);*/
+            let ptr = mem.get_host_address(in_addr)
+                .map_err(Error::GuestMemory)?;
+
+            let arg = VAccelArg{
+                len : in_len as usize,
+                buf : ptr
+            };
+            in_args_new.push(arg);
+            total_len += in_len;
+            debug!("We have: {:?} ", in_len);
+        }
 
         match vaccel_bindings::gen_op(
             sess,
-            &mut out_args,
-            &mut in_args,
+            &mut in_args_new,
+            &mut out_args_new,
         ) {
             Ok(()) => {
-                mem.write(&out_args[..out_len as usize], out_addr)
-                    .map_err(Error::GuestMemory)?;
+                /*mem.write(&out_args[..out_len as usize], out_addr)
+                    .map_err(Error::GuestMemory)?;*/
 
-                Ok(out_len)
+                Ok(total_len)
             },
             Err(_) => Err(Error::VaccelRuntime),
         }
@@ -311,6 +344,7 @@ impl Request {
             let op_type : u32 =
                 mem.read_obj(addr).map_err(Error::GuestMemory)?;
 
+            debug!("We have: {:?} op_type", op_type);
             match op_type {
                 VACCEL_NO_OP => { return Err(Error::VaccelRuntime) },
                 VACCEL_BLAS_SGEMM => { return Err(Error::VaccelRuntime) },
