@@ -20,4 +20,4 @@ rate_limiter = { path = "../rate_limiter" }
 snapshot = { path = "../snapshot" }
 utils = { path = "../utils" }
 virtio_gen = { path = "../virtio_gen" }
-vaccel-bindings = { git = "https://github.com/cloudkernels/vaccel-bindings", branch = "feat_genop" }
+vaccel-bindings = { git = "https://github.com/cloudkernels/vaccel-bindings", branch = "api_cleanup" }
