@@ -28,6 +28,7 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: "${{matrix.arch}}"
         dockerfile: "${{github.workspace}}/tools/devctr/Dockerfile.${{matrix.arch}}"
+        buildargs: FOOLCACHE=$(date +%s)
 
   manifest:
     runs-on: [ self-hosted, aarch64 ]
