@@ -81,6 +81,8 @@ ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION_TAG}/tini-s
 RUN chmod +x /sbin/tini
 
 # Install vaccel runtime
+ARG FOOLCACHE=0
+RUN echo "$FOOLCACHE"
 RUN git clone https://github.com/cloudkernels/vaccelrt.git --recursive && \
 	cd vaccelrt && \
 	mkdir build && cd build && \
