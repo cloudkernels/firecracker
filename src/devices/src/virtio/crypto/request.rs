@@ -196,10 +196,8 @@ impl Request {
         sessions: &mut HashMap<u32, vaccel_session>,
         mem: &GuestMemoryMmap
     ) -> Result<u32> {
-        let mut sess: vaccel_session = Default::default();
-
-        match new_session(&mut sess, 0) {
-            Ok(()) => {
+        match vaccel_session::new(0) {
+            Ok(sess) => {
                 mem.write_obj(sess.session_id, self.sess_id_addr.unwrap())
                     .map_err(Error::GuestMemory)?;
 
@@ -215,112 +213,14 @@ impl Request {
         sessions: &mut HashMap<u32, vaccel_session>,
         _mem: &GuestMemoryMmap
     ) -> Result<u32> {
-        let sess = sessions.remove(&self.session_id);
-        if sess.is_none() {
-            return Err(Error::VaccelRuntime);
-        }
-
-        match close_session(&mut sess.unwrap()) {
-            Ok(()) => Ok(0),
-            Err(_) => Err(Error::VaccelRuntime),
-        }
-    }
-
-    fn genop(
-        &self,
-        sess: &mut vaccel_session,
-        mem: &GuestMemoryMmap
-    ) -> Result<u32> {
-
-        let mut out_args_new = Vec::new();
-        /* skip the internal VACCEL_GEN_OP op_arg */
-        for x in 1..self.out_args.len() {
-            let (out_addr, out_len) = self.out_args[x];
-            /*
-            let mut out_field = vec![0u8; out_len as usize];
-            mem.read(&mut out_field, out_addr).map_err(Error::GuestMemory)?;
-            println!("{:02X?}", out_field);*/
-            let ptr = mem.get_host_address(out_addr)
-                .map_err(Error::GuestMemory)?;
-
-            let arg = VAccelArg{
-                len : out_len as usize,
-                buf : ptr
-            };
-            out_args_new.push(arg);
-            debug!("We have: {:?} ", out_len);
-        }
-
-        let mut total_len = 0;
-        let mut in_args_new = Vec::new();
-        for x in 0..self.in_args.len() {
-            let (in_addr, in_len) = self.in_args[x];
-            /*let mut in_field = vec![0u8;in_len as usize];
-            mem.read(&mut in_field, in_addr).map_err(Error::GuestMemory)?;
-
-            println!("{:02X?}", in_field);*/
-            let ptr = mem.get_host_address(in_addr)
-                .map_err(Error::GuestMemory)?;
-
-            let arg = VAccelArg{
-                len : in_len as usize,
-                buf : ptr
-            };
-            in_args_new.push(arg);
-            total_len += in_len;
-            debug!("We have: {:?} ", in_len);
-        }
-
-        match vaccel_bindings::gen_op(
-            sess,
-            &mut in_args_new,
-            &mut out_args_new,
-        ) {
-            Ok(()) => {
-                /*mem.write(&out_args[..out_len as usize], out_addr)
-                    .map_err(Error::GuestMemory)?;*/
-
-                Ok(total_len)
+        match sessions.remove(&self.session_id) {
+            Some(mut sess) => {
+                match sess.close() {
+                    Ok(()) => Ok(0),
+                    Err(_) => Err(Error::VaccelRuntime),
+                }
             },
-            Err(_) => Err(Error::VaccelRuntime),
-        }
-    }
-
-    fn image_classification_op(
-        &self,
-        sess: &mut vaccel_session,
-        mem: &GuestMemoryMmap
-    ) -> Result<u32> {
-        if self.out_args.len() != 2 && self.in_args.len() != 2 {
-            return Err(Error::VaccelRuntime);
-        }
-
-        let (img_addr, img_len) = self.out_args[1];
-        let mut img_bytes = vec![0u8; img_len as usize];
-        mem.read(&mut img_bytes, img_addr).map_err(Error::GuestMemory)?;
-
-        let (out_text_addr, out_text_len) = self.in_args[0];
-        let mut out_text_bytes = vec![0u8; out_text_len as usize];
-
-        let (out_imgname_addr, out_imgname_len) = self.in_args[1];
-        let mut out_imgname_bytes = vec![0u8; out_imgname_len as usize];
-
-        match vaccel_bindings::image_classification(
-            sess,
-            &mut img_bytes,
-            &mut out_text_bytes,
-            &mut out_imgname_bytes,
-        ) {
-            Ok(()) => {
-                mem.write(&out_text_bytes[..out_text_len as usize], out_text_addr)
-                    .map_err(Error::GuestMemory)?;
-
-                mem.write(&out_imgname_bytes[..out_imgname_len as usize], out_imgname_addr)
-                    .map_err(Error::GuestMemory)?;
-
-                Ok(out_text_len + out_imgname_len)
-            },
-            Err(_) => Err(Error::VaccelRuntime),
+            None => Err(Error::VaccelRuntime)
         }
     }
 
@@ -335,24 +235,35 @@ impl Request {
                 None => return Err(Error::VaccelRuntime)
             };
 
-            // The out arguments need to at least include the operation type
-            if self.out_args.len() == 0 {
-                return Err(Error::VaccelRuntime);
-            }
+        let mut read_args = Vec::new();
+        for (addr, size) in &self.out_args {
+            let host_ptr = mem.get_host_address(*addr)
+                .map_err(Error::GuestMemory)?;
 
-            let (addr, _) = self.out_args[0];
-            let op_type : u32 =
-                mem.read_obj(addr).map_err(Error::GuestMemory)?;
+            let arg = vaccel_arg {
+                size: *size,
+                buf: host_ptr as *mut core::ffi::c_void
+            };
 
-            debug!("We have: {:?} op_type", op_type);
-            match op_type {
-                VACCEL_NO_OP => { return Err(Error::VaccelRuntime) },
-                VACCEL_BLAS_SGEMM => { return Err(Error::VaccelRuntime) },
-                VACCEL_IMG_CLASS => { self.image_classification_op(sess, mem) },
-                VACCEL_IMG_DETEC => { return Err(Error::VaccelRuntime) },
-                VACCEL_IMG_SEGME => { return Err(Error::VaccelRuntime) },
-                VACCEL_GEN_OP => { self.genop(sess, mem) },
-                _ => return Err(Error::VaccelRuntime),
-            }
+            read_args.push(arg);
+        }
+
+        let mut write_args = Vec::new();
+        for (addr, size) in &self.in_args {
+            let host_ptr = mem.get_host_address(*addr)
+                .map_err(Error::GuestMemory)?;
+
+            let arg = vaccel_arg {
+                size: *size,
+                buf: host_ptr as *mut core::ffi::c_void
+            };
+
+            write_args.push(arg);
+        }
+
+        match sess.genop(&mut read_args, &mut write_args) {
+            Ok(()) => Ok(self.out_bytes as u32),
+            Err(_) => Err(Error::VaccelRuntime)
+        }
     }
 }

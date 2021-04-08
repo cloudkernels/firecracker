@@ -176,7 +176,7 @@ dependencies = [
  "snapshot 0.1.0",
  "timerfd 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "utils 0.1.0",
- "vaccel-bindings 0.1.0 (git+https://github.com/cloudkernels/vaccel-bindings?branch=feat_genop)",
+ "vaccel-bindings 0.1.0 (git+https://github.com/cloudkernels/vaccel-bindings?branch=api_cleanup)",
  "versionize 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "versionize_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "virtio_gen 0.1.0",
@@ -611,7 +611,7 @@ dependencies = [
 [[package]]
 name = "vaccel-bindings"
 version = "0.1.0"
-source = "git+https://github.com/cloudkernels/vaccel-bindings?branch=feat_genop#165cc0f8c276bc813930360fb94c77a6b3d2222f"
+source = "git+https://github.com/cloudkernels/vaccel-bindings?branch=api_cleanup#187ae1dd4bf5907802b44c9854e229deca179630"
 dependencies = [
  "bindgen 0.53.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.68 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -804,7 +804,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum timerfd 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0123bba5b202eb298259401ae5611d3a34e852f1d9b6963bbf266b344355a93d"
 "checksum unicode-width 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "9337591893a19b88d8d87f2cec1e73fad5cdfd10e5a6f349f498ad6ea2ffb1e3"
 "checksum unicode-xid 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "826e7639553986605ec5979c7dd957c7895e93eabed50ab2ffa7f6128a75097c"
-"checksum vaccel-bindings 0.1.0 (git+https://github.com/cloudkernels/vaccel-bindings?branch=feat_genop)" = "<none>"
+"checksum vaccel-bindings 0.1.0 (git+https://github.com/cloudkernels/vaccel-bindings?branch=api_cleanup)" = "<none>"
 "checksum vec_map 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 "checksum version_check 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "5fecdca9a5291cc2b8dcf7dc02453fee791a280f3743cb0905f8822ae463b3fe"
 "checksum versionize 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "9c9947d2d1888281839f86c26f727c5ef40accf0ef0762b3086e33a476cea858"

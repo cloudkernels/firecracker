@@ -2,7 +2,7 @@ name: Pull Request for vaccel-v0.23
 
 on:
   pull_request:
-   
+
 
 jobs:
   build:
@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Fetch latest docker image
+        run: docker pull nubificus/fcuvm:vaccel
 
       - name: Build Firecracker
         run: ./tools/devtool -y build -l gnu --${{ matrix.build_type}}
