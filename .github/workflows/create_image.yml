@@ -45,5 +45,8 @@ jobs:
       - name: Manifest images under one label
         id: manifest-images
         run: |
-          docker manifest create nubificus/fcuvm:vaccel --amend nubificus/fcuvm:x86_64 --amend nubificus/fcuvm:aarch64
+          docker manifest rm nubificus/fcuvm:vaccel
+          docker manifest create nubificus/fcuvm:vaccel \
+            --amend nubificus/fcuvm:x86_64 \
+            --amend nubificus/fcuvm:aarch64
           docker manifest push nubificus/fcuvm:vaccel
