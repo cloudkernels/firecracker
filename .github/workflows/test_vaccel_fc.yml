@@ -19,12 +19,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Fetch latest docker image
-        run: docker pull nubificus/fcuvm:vaccel
-
-      - name: Build Firecracker
-        run: ./tools/devtool -y build -l gnu --${{ matrix.build_type}}
-
       - name: Find SHA
         run: |
           if [[ "${{github.event.pull_request.head.sha}}" != ""]]
@@ -33,6 +27,12 @@ jobs:
           else
             echo "ARTIFACT_SHA=$(echo ${{github.sha}})" >> $GITHUB_ENV
           fi
+
+      - name: Fetch latest docker image
+        run: docker pull nubificus/fcuvm:vaccel
+
+      - name: Build Firecracker
+        run: ./tools/devtool -y build -l gnu --${{ matrix.build_type}}
 
       - name: Upload Kernel artifact
         id: upload-artifact
