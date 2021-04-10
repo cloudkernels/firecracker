@@ -21,7 +21,7 @@ jobs:
 
       - name: Find SHA
         run: |
-          if [[ "${{github.event.pull_request.head.sha}}" != ""]]
+          if [[ "${{github.event.pull_request.head.sha}}" != "" ]]
           then
             echo "ARTIFACT_SHA=$(echo ${{github.event.pull_request.head.sha}})" >> $GITHUB_ENV
           else
