@@ -1,8 +1,10 @@
-name: Pull Request for vaccel-v0.23
+name: Build vAccel Firecracker
 
 on:
   pull_request:
-
+  push:
+    branches:
+      - vaccel-0.23
 
 jobs:
   build:
@@ -16,6 +18,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Find SHA
+        run: |
+          if [[ "${{github.event.pull_request.head.sha}}" != "" ]]
+          then
+            echo "ARTIFACT_SHA=$(echo ${{github.event.pull_request.head.sha}})" >> $GITHUB_ENV
+          else
+            echo "ARTIFACT_SHA=$(echo ${{github.sha}})" >> $GITHUB_ENV
+          fi
 
       - name: Fetch latest docker image
         run: docker pull nubificus/fcuvm:vaccel
@@ -32,4 +43,4 @@ jobs:
           access-key: ${{ secrets.AWS_ACCESS_KEY }}
           secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           local-path: build/cargo_target/${{ matrix.arch }}-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
-          remote-path: nbfc-assets/github/firecracker/${{ github.event.pull_request.head.sha }}/${{ matrix.arch }}/${{ matrix.build_type}}/
+          remote-path: nbfc-assets/github/firecracker/${{ env.ARTIFACT_SHA }}/${{ matrix.arch }}/${{ matrix.build_type}}/
