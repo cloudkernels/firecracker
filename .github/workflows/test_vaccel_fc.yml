@@ -28,6 +28,15 @@ jobs:
             echo "ARTIFACT_SHA=$(echo ${{github.sha}})" >> $GITHUB_ENV
           fi
 
+      - name: Test SHA
+        env:
+          BLAH: ${{ env.ARTIFACT_SHA }}
+        run: |
+          echo "$ARTIFACT_SHA"
+          echo "${{ env.ARTIFACT_SHA }}"
+          exit 1;
+
+
       - name: Fetch latest docker image
         run: docker pull nubificus/fcuvm:vaccel
 
