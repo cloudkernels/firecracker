@@ -2,7 +2,9 @@ name: Pull Request for vaccel-v0.23
 
 on:
   pull_request:
-
+  push:
+    branches:
+      - feat_workflow_for_master
 
 jobs:
   build:
@@ -23,6 +25,15 @@ jobs:
       - name: Build Firecracker
         run: ./tools/devtool -y build -l gnu --${{ matrix.build_type}}
 
+      - name: Find SHA
+        run: |
+          if [[ "${{github.event.pull_request.head.sha}}" != ""]]
+          then
+            echo "ARTIFACT_SHA=$(echo ${{github.event.pull_request.head.sha}})" >> $GITHUB_ENV
+          else
+            echo "ARTIFACT_SHA=$(echo ${{github.sha}})" >> $GITHUB_ENV
+          fi
+
       - name: Upload Kernel artifact
         id: upload-artifact
         if: steps.build-kernel.outputs.build_exit_code == 0
@@ -32,4 +43,4 @@ jobs:
           access-key: ${{ secrets.AWS_ACCESS_KEY }}
           secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           local-path: build/cargo_target/${{ matrix.arch }}-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
-          remote-path: nbfc-assets/github/firecracker/${{ github.event.pull_request.head.sha }}/${{ matrix.arch }}/${{ matrix.build_type}}/
+          remote-path: nbfc-assets/github/firecracker/$ARTIFACT_SHA/${{ matrix.arch }}/${{ matrix.build_type}}/
