@@ -1,4 +1,4 @@
-name: Pull Request for vaccel-v0.23
+name: Test vAccel Firecracker
 
 on:
   pull_request:
