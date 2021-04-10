@@ -28,15 +28,6 @@ jobs:
             echo "ARTIFACT_SHA=$(echo ${{github.sha}})" >> $GITHUB_ENV
           fi
 
-      - name: Test SHA
-        env:
-          BLAH: ${{ env.ARTIFACT_SHA }}
-        run: |
-          echo "$ARTIFACT_SHA"
-          echo "${{ env.ARTIFACT_SHA }}"
-          exit 1;
-
-
       - name: Fetch latest docker image
         run: docker pull nubificus/fcuvm:vaccel
 
@@ -52,4 +43,4 @@ jobs:
           access-key: ${{ secrets.AWS_ACCESS_KEY }}
           secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           local-path: build/cargo_target/${{ matrix.arch }}-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
-          remote-path: nbfc-assets/github/firecracker/$ARTIFACT_SHA/${{ matrix.arch }}/${{ matrix.build_type}}/
+          remote-path: nbfc-assets/github/firecracker/${{ env.ARTIFACT_SHA }}/${{ matrix.arch }}/${{ matrix.build_type}}/
