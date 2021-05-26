@@ -1,22 +1,22 @@
 use crate::virtio::crypto::Error;
 use crate::virtio::crypto::Result;
-use crate::virtio::crypto::{NUM_QUEUES, QUEUE_SIZES, request::*};
+use crate::virtio::crypto::{request::*, NUM_QUEUES, QUEUE_SIZES};
 use crate::virtio::{
-    ActivateResult, DeviceState, Queue, VirtioDevice, TYPE_CRYPTO, VIRTIO_MMIO_INT_VRING
+    ActivateResult, DeviceState, Queue, VirtioDevice, TYPE_CRYPTO, VIRTIO_MMIO_INT_VRING,
 };
 
-use std::io::Write;
+use logger::{debug, error, info};
 use std::cmp;
+use std::collections::HashMap;
+use std::io::Write;
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::collections::HashMap;
 use utils::eventfd::EventFd;
 use vaccel_bindings::*;
-use logger::{error, debug, info};
 
 use virtio_gen::virtio_crypto::*;
-use vm_memory::{ByteValued, GuestMemoryMmap, Bytes};
+use vm_memory::{ByteValued, Bytes, GuestMemoryMmap};
 
 use crate::Error as DeviceError;
 
@@ -54,7 +54,7 @@ impl Default for ConfigSpace {
             max_dataqueues: (NUM_QUEUES - 1) as u32,
             crypto_services: 1 << VIRTIO_CRYPTO_SERVICE_CIPHER,
             cipher_algo_l: 1 << VIRTIO_CRYPTO_CIPHER_AES_CBC,
-            cipher_algo_h : 0,
+            cipher_algo_h: 0,
             hash_algo: 0,
             mac_algo_l: 0,
             mac_algo_h: 0,
@@ -62,7 +62,7 @@ impl Default for ConfigSpace {
             max_cipher_key_len: 32768,
             max_auth_key_len: 0,
             reserved: 0,
-            max_size: 64*1024*1024,
+            max_size: 64 * 1024 * 1024,
         }
     }
 }
@@ -85,13 +85,13 @@ pub struct Crypto {
     interrupt_evt: EventFd,
     pub(crate) device_state: DeviceState,
 
-    pub(crate) sessions: HashMap<u32, vaccel_session>,
+    pub(crate) sessions: HashMap<u32, Box<vaccel_session>>,
 }
 
+unsafe impl Send for Crypto {}
 
 impl Crypto {
     pub fn new(id: String) -> Result<Self> {
-
         // No stateless atm (until I figure out what that is)
         let avail_features = 1u64 << VIRTIO_F_VERSION_1;
 
@@ -117,7 +117,7 @@ impl Crypto {
             interrupt_status: Arc::new(AtomicUsize::new(0)),
             interrupt_evt: EventFd::new(libc::EFD_NONBLOCK).map_err(Error::EventFd)?,
             device_state: DeviceState::Inactive,
-            sessions: HashMap::new()
+            sessions: HashMap::new(),
         })
     }
 
@@ -148,19 +148,18 @@ impl Crypto {
             let size;
             match Request::parse(&head, mem) {
                 Ok(mut request) => {
-                    let status =
-                        match request.execute(&mut self.sessions, mem) {
-                            Ok(l) => {
-                                size = l;
-                                VIRTIO_CRYPTO_OK
-                            },
-                            Err(err) => {
-                                error!("Failed to execute request: {:?}", err);
-                                // We need 4 bytes to write the status
-                                size = 4;
-                                1u32
-                            }
-                        };
+                    let status = match request.execute(&mut self.sessions, mem) {
+                        Ok(l) => {
+                            size = l;
+                            VIRTIO_CRYPTO_OK
+                        }
+                        Err(err) => {
+                            error!("Failed to execute request: {:?}", err);
+                            // We need 4 bytes to write the status
+                            size = 4;
+                            1u32
+                        }
+                    };
 
                     // We can unwrap here, since we have already checked that
                     // there is a valid status descriptor while parsing

@@ -1,12 +1,11 @@
-use std::convert::From;
 use std::collections::HashMap;
+use std::convert::From;
 
-use vm_memory::{ByteValued, Bytes, GuestMemoryMmap, GuestAddress, GuestMemory};
 use vaccel_bindings::*;
+use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
 
+use crate::virtio::crypto::{Error, Result};
 use crate::virtio::DescriptorChain;
-use crate::virtio::crypto::{Result, Error};
-
 
 use logger::debug;
 
@@ -74,15 +73,15 @@ fn get_args_vec<'a>(
     desc: DescriptorChain<'a>,
     nr_elements: u32,
     args: &mut Vec<(GuestAddress, u32)>,
-) -> Result<(usize, Option<DescriptorChain<'a>>)>
-{
+) -> Result<(usize, Option<DescriptorChain<'a>>)> {
     let mut curr_desc = desc;
     let mut total_bytes = 0usize;
 
     for _ in 0..nr_elements {
         args.push((curr_desc.addr, curr_desc.len));
         total_bytes += curr_desc.len as usize;
-        curr_desc = curr_desc.next_descriptor()
+        curr_desc = curr_desc
+            .next_descriptor()
             .ok_or(Error::DescriptorChainTooShort)?;
     }
 
@@ -90,16 +89,14 @@ fn get_args_vec<'a>(
 }
 
 impl Request {
-    pub fn parse(
-        avail_desc: &DescriptorChain,
-        mem: &GuestMemoryMmap,
-    ) -> Result<Request> {
+    pub fn parse(avail_desc: &DescriptorChain, mem: &GuestMemoryMmap) -> Result<Request> {
         // We must be able to read the request header
         if avail_desc.is_write_only() {
             return Err(Error::UnexpectedWriteOnlyDescriptor);
         }
 
-        let header = mem.read_obj::<AccelRequestHeader>(avail_desc.addr)
+        let header = mem
+            .read_obj::<AccelRequestHeader>(avail_desc.addr)
             .map_err(Error::GuestMemory)?;
 
         let mut request = Request {
@@ -115,7 +112,8 @@ impl Request {
         };
 
         // We should at least have a descriptor for the status
-        let mut curr_desc = avail_desc.next_descriptor()
+        let mut curr_desc = avail_desc
+            .next_descriptor()
             .ok_or(Error::DescriptorChainTooShort)?;
 
         if header.out_nr > 0 {
@@ -125,7 +123,8 @@ impl Request {
             }
 
             request.out_length = Some(curr_desc.addr);
-            curr_desc = curr_desc.next_descriptor()
+            curr_desc = curr_desc
+                .next_descriptor()
                 .ok_or(Error::DescriptorChainTooShort)?;
         }
 
@@ -136,7 +135,8 @@ impl Request {
             }
 
             request.in_length = Some(curr_desc.addr);
-            curr_desc = curr_desc.next_descriptor()
+            curr_desc = curr_desc
+                .next_descriptor()
                 .ok_or(Error::DescriptorChainTooShort)?;
         }
 
@@ -149,7 +149,7 @@ impl Request {
         match get_args_vec(curr_desc, header.out_nr, &mut request.out_args) {
             Ok((_, next_desc)) => {
                 curr_desc = next_desc.ok_or(Error::DescriptorChainTooShort)?;
-            },
+            }
             Err(e) => return Err(e),
         }
 
@@ -163,7 +163,7 @@ impl Request {
             Ok((bytes, next_desc)) => {
                 request.out_bytes = bytes;
                 curr_desc = next_desc.ok_or(Error::DescriptorChainTooShort)?;
-            },
+            }
             Err(e) => return Err(e),
         }
 
@@ -171,7 +171,7 @@ impl Request {
             Some(last_desc) => {
                 request.sess_id_addr = Some(curr_desc.addr);
                 request.status_addr = last_desc.addr
-            },
+            }
             None => request.status_addr = curr_desc.addr,
         }
 
@@ -180,7 +180,7 @@ impl Request {
 
     pub fn execute(
         &mut self,
-        sessions: &mut HashMap<u32, vaccel_session>,
+        sessions: &mut HashMap<u32, Box<vaccel_session>>,
         mem: &GuestMemoryMmap,
     ) -> Result<u32> {
         match self.op_type {
@@ -193,56 +193,52 @@ impl Request {
 
     fn create_session(
         &mut self,
-        sessions: &mut HashMap<u32, vaccel_session>,
-        mem: &GuestMemoryMmap
+        sessions: &mut HashMap<u32, Box<vaccel_session>>,
+        mem: &GuestMemoryMmap,
     ) -> Result<u32> {
         match vaccel_session::new(0) {
             Ok(sess) => {
                 mem.write_obj(sess.session_id, self.sess_id_addr.unwrap())
                     .map_err(Error::GuestMemory)?;
 
-                sessions.insert(sess.session_id, sess);
+                sessions.insert(sess.session_id, Box::new(sess));
                 return Ok((self.out_bytes + 4) as u32);
-            },
-            Err(_) => return Err(Error::VaccelRuntime)
+            }
+            Err(_) => return Err(Error::VaccelRuntime),
         }
     }
 
     fn close_session(
         &self,
-        sessions: &mut HashMap<u32, vaccel_session>,
-        _mem: &GuestMemoryMmap
+        sessions: &mut HashMap<u32, Box<vaccel_session>>,
+        _mem: &GuestMemoryMmap,
     ) -> Result<u32> {
         match sessions.remove(&self.session_id) {
-            Some(mut sess) => {
-                match sess.close() {
-                    Ok(()) => Ok(0),
-                    Err(_) => Err(Error::VaccelRuntime),
-                }
+            Some(sess) => match sess.close() {
+                Ok(()) => Ok(0),
+                Err(_) => Err(Error::VaccelRuntime),
             },
-            None => Err(Error::VaccelRuntime)
+            None => Err(Error::VaccelRuntime),
         }
     }
 
     fn do_op(
         &self,
-        sessions: &mut HashMap<u32, vaccel_session>,
-        mem: &GuestMemoryMmap
+        sessions: &mut HashMap<u32, Box<vaccel_session>>,
+        mem: &GuestMemoryMmap,
     ) -> Result<u32> {
-        let sess =
-            match sessions.get_mut(&self.session_id) {
-                Some(sess) => sess,
-                None => return Err(Error::VaccelRuntime)
-            };
+        let sess = match sessions.get_mut(&self.session_id) {
+            Some(sess) => sess,
+            None => return Err(Error::VaccelRuntime),
+        };
 
         let mut read_args = Vec::new();
         for (addr, size) in &self.out_args {
-            let host_ptr = mem.get_host_address(*addr)
-                .map_err(Error::GuestMemory)?;
+            let host_ptr = mem.get_host_address(*addr).map_err(Error::GuestMemory)?;
 
             let arg = vaccel_arg {
                 size: *size,
-                buf: host_ptr as *mut core::ffi::c_void
+                buf: host_ptr as *mut core::ffi::c_void,
             };
 
             read_args.push(arg);
@@ -250,12 +246,11 @@ impl Request {
 
         let mut write_args = Vec::new();
         for (addr, size) in &self.in_args {
-            let host_ptr = mem.get_host_address(*addr)
-                .map_err(Error::GuestMemory)?;
+            let host_ptr = mem.get_host_address(*addr).map_err(Error::GuestMemory)?;
 
             let arg = vaccel_arg {
                 size: *size,
-                buf: host_ptr as *mut core::ffi::c_void
+                buf: host_ptr as *mut core::ffi::c_void,
             };
 
             write_args.push(arg);
@@ -263,7 +258,7 @@ impl Request {
 
         match sess.genop(&mut read_args, &mut write_args) {
             Ok(()) => Ok(self.out_bytes as u32),
-            Err(_) => Err(Error::VaccelRuntime)
+            Err(_) => Err(Error::VaccelRuntime),
         }
     }
 }
