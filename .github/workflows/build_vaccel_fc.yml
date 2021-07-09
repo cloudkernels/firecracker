@@ -3,8 +3,7 @@ name: Build vAccel Firecracker
 on:
   pull_request:
   push:
-    branches:
-      - vaccel-0.23
+    branches: [vaccel-0.23, vaccel-main]
 
 jobs:
   build:

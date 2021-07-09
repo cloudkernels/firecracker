@@ -2,11 +2,13 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ vaccel-0.23, vaccel-0.23-extend ]
+    branches: [ vaccel-0.23, vaccel-0.23-extend, vaccel-main ]
     paths:
       - '**/Dockerfile*'
+      - 'tools/devtool'
+      - '.github/workflows/create_image.yml'
   pull_request:
-    branches: [ vaccel-0.23 ]
+    branches: [ vaccel-0.23 vaccel-main ]
   workflow_dispatch:
 
 jobs:
@@ -26,7 +28,7 @@ jobs:
         name: nubificus/fcuvm
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        tags: "${{matrix.arch}}"
+        tags: "${{matrix.arch}}-main"
         dockerfile: "${{github.workspace}}/tools/devctr/Dockerfile.${{matrix.arch}}"
 
   manifest:
@@ -42,8 +44,8 @@ jobs:
       - name: Manifest images under one label
         shell: bash {0}
         run: |
-          docker manifest rm nubificus/fcuvm:vaccel
-          docker manifest create nubificus/fcuvm:vaccel \
-            --amend nubificus/fcuvm:x86_64 \
-            --amend nubificus/fcuvm:aarch64
-          docker manifest push nubificus/fcuvm:vaccel
+          docker manifest rm nubificus/fcuvm:vaccel-main
+          docker manifest create nubificus/fcuvm:vaccel-main \
+            --amend nubificus/fcuvm:x86_64-main \
+            --amend nubificus/fcuvm:aarch64-main
+          docker manifest push nubificus/fcuvm:vaccel-main
