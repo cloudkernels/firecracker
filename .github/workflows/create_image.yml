@@ -26,7 +26,7 @@ jobs:
         name: nubificus/fcuvm
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        tags: "${{matrix.arch}}"
+        tags: "${{matrix.arch}}-v0.23"
         dockerfile: "${{github.workspace}}/tools/devctr/Dockerfile.${{matrix.arch}}"
 
   manifest:
@@ -42,8 +42,8 @@ jobs:
       - name: Manifest images under one label
         shell: bash {0}
         run: |
-          docker manifest rm nubificus/fcuvm:vaccel
-          docker manifest create nubificus/fcuvm:vaccel \
-            --amend nubificus/fcuvm:x86_64 \
-            --amend nubificus/fcuvm:aarch64
-          docker manifest push nubificus/fcuvm:vaccel
+          docker manifest rm nubificus/fcuvm:vaccel-v0.23
+          docker manifest create nubificus/fcuvm:vaccel-v0.23 \
+            --amend nubificus/fcuvm:x86_64-v0.23 \
+            --amend nubificus/fcuvm:aarch64-v0.23
+          docker manifest push nubificus/fcuvm:vaccel-v0.23
