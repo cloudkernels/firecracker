@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::convert::From;
 
-use vaccel_bindings::*;
+use vaccel::ops::genop::GenopArg;
+use vaccel::{Session, VaccelId};
 use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
 
 use crate::virtio::crypto::{Error, Result};
@@ -53,10 +54,10 @@ pub struct Request {
     out_length: Option<GuestAddress>,
 
     // VirtIO "in" data
-    in_args: Vec<(GuestAddress, u32)>,
+    in_args: Vec<GenopArg>,
 
     // VirtIO "out" data
-    out_args: Vec<(GuestAddress, u32)>,
+    out_args: Vec<GenopArg>,
 
     // Number of bytes that we will write to the guest as part
     // of the operation
@@ -70,15 +71,20 @@ pub struct Request {
 }
 
 fn get_args_vec<'a>(
+    mem: &GuestMemoryMmap,
     desc: DescriptorChain<'a>,
     nr_elements: u32,
-    args: &mut Vec<(GuestAddress, u32)>,
+    args: &mut Vec<GenopArg>,
 ) -> Result<(usize, Option<DescriptorChain<'a>>)> {
     let mut curr_desc = desc;
     let mut total_bytes = 0usize;
 
     for _ in 0..nr_elements {
-        args.push((curr_desc.addr, curr_desc.len));
+        args.push(GenopArg::new(
+            mem.get_host_address(curr_desc.addr)
+                .map_err(Error::GuestMemory)?,
+            curr_desc.len as usize,
+        ));
         total_bytes += curr_desc.len as usize;
         curr_desc = curr_desc
             .next_descriptor()
@@ -146,7 +152,7 @@ impl Request {
         }
 
         // Read out data
-        match get_args_vec(curr_desc, header.out_nr, &mut request.out_args) {
+        match get_args_vec(mem, curr_desc, header.out_nr, &mut request.out_args) {
             Ok((_, next_desc)) => {
                 curr_desc = next_desc.ok_or(Error::DescriptorChainTooShort)?;
             }
@@ -159,7 +165,7 @@ impl Request {
         }
 
         // Read in data
-        match get_args_vec(curr_desc, header.in_nr, &mut request.in_args) {
+        match get_args_vec(mem, curr_desc, header.in_nr, &mut request.in_args) {
             Ok((bytes, next_desc)) => {
                 request.out_bytes = bytes;
                 curr_desc = next_desc.ok_or(Error::DescriptorChainTooShort)?;
@@ -180,28 +186,29 @@ impl Request {
 
     pub fn execute(
         &mut self,
-        sessions: &mut HashMap<u32, Box<vaccel_session>>,
+        sessions: &mut HashMap<VaccelId, Box<Session>>,
         mem: &GuestMemoryMmap,
     ) -> Result<u32> {
         match self.op_type {
             AccelOp::CreateSessionGen => return self.create_session(sessions, mem),
             AccelOp::DestroySessionGen => return self.close_session(sessions, mem),
-            AccelOp::DoOp => return self.do_op(sessions, mem),
+            AccelOp::DoOp => return self.do_op(sessions),
             AccelOp::Unsupported(_) => return Err(Error::UnsupportedQueueRequest),
         }
     }
 
     fn create_session(
         &mut self,
-        sessions: &mut HashMap<u32, Box<vaccel_session>>,
+        sessions: &mut HashMap<VaccelId, Box<Session>>,
         mem: &GuestMemoryMmap,
     ) -> Result<u32> {
-        match vaccel_session::new(0) {
+        match Session::new(0) {
             Ok(sess) => {
-                mem.write_obj(sess.session_id, self.sess_id_addr.unwrap())
+                let id: u32 = sess.id().into();
+                mem.write_obj(id, self.sess_id_addr.unwrap())
                     .map_err(Error::GuestMemory)?;
 
-                sessions.insert(sess.session_id, Box::new(sess));
+                sessions.insert(sess.id().into(), Box::new(sess));
                 return Ok((self.out_bytes + 4) as u32);
             }
             Err(_) => return Err(Error::VaccelRuntime),
@@ -210,11 +217,11 @@ impl Request {
 
     fn close_session(
         &self,
-        sessions: &mut HashMap<u32, Box<vaccel_session>>,
+        sessions: &mut HashMap<VaccelId, Box<Session>>,
         _mem: &GuestMemoryMmap,
     ) -> Result<u32> {
-        match sessions.remove(&self.session_id) {
-            Some(sess) => match sess.close() {
+        match sessions.remove(&VaccelId::from(self.session_id)) {
+            Some(mut sess) => match sess.close() {
                 Ok(()) => Ok(0),
                 Err(_) => Err(Error::VaccelRuntime),
             },
@@ -222,41 +229,13 @@ impl Request {
         }
     }
 
-    fn do_op(
-        &self,
-        sessions: &mut HashMap<u32, Box<vaccel_session>>,
-        mem: &GuestMemoryMmap,
-    ) -> Result<u32> {
-        let sess = match sessions.get_mut(&self.session_id) {
+    fn do_op(&mut self, sessions: &mut HashMap<VaccelId, Box<Session>>) -> Result<u32> {
+        let sess = match sessions.get_mut(&VaccelId::from(self.session_id)) {
             Some(sess) => sess,
             None => return Err(Error::VaccelRuntime),
         };
 
-        let mut read_args = Vec::new();
-        for (addr, size) in &self.out_args {
-            let host_ptr = mem.get_host_address(*addr).map_err(Error::GuestMemory)?;
-
-            let arg = vaccel_arg {
-                size: *size,
-                buf: host_ptr as *mut core::ffi::c_void,
-            };
-
-            read_args.push(arg);
-        }
-
-        let mut write_args = Vec::new();
-        for (addr, size) in &self.in_args {
-            let host_ptr = mem.get_host_address(*addr).map_err(Error::GuestMemory)?;
-
-            let arg = vaccel_arg {
-                size: *size,
-                buf: host_ptr as *mut core::ffi::c_void,
-            };
-
-            write_args.push(arg);
-        }
-
-        match sess.genop(&mut read_args, &mut write_args) {
+        match sess.genop(&mut self.out_args, &mut self.in_args) {
             Ok(()) => Ok(self.out_bytes as u32),
             Err(_) => Err(Error::VaccelRuntime),
         }

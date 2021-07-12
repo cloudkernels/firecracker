@@ -13,7 +13,8 @@ use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use utils::eventfd::EventFd;
-use vaccel_bindings::*;
+
+use vaccel::{Session, VaccelId};
 
 use virtio_gen::virtio_crypto::*;
 use vm_memory::{ByteValued, Bytes, GuestMemoryMmap};
@@ -82,10 +83,10 @@ pub struct Crypto {
     pub(crate) queues: Vec<Queue>,
     pub(crate) queue_evts: Vec<EventFd>,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
-    interrupt_evt: EventFd,
+    pub(crate) interrupt_evt: EventFd,
     pub(crate) device_state: DeviceState,
 
-    pub(crate) sessions: HashMap<u32, Box<vaccel_session>>,
+    pub(crate) sessions: HashMap<VaccelId, Box<Session>>,
 }
 
 unsafe impl Send for Crypto {}

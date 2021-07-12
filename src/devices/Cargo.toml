@@ -10,6 +10,7 @@ timerfd = ">=1.0"
 versionize = ">=0.1.2"
 versionize_derive = ">=0.1.1"
 vm-memory = { version = ">=0.2.2", features = ["backend-mmap"] }
+vaccel = { git = "https://github.com/cloudkernels/vaccel-bindings", tag = "v0.1.1" }
 
 dumbo = { path = "../dumbo" }
 logger = { path = "../logger" }
@@ -20,4 +21,3 @@ rate_limiter = { path = "../rate_limiter" }
 snapshot = { path = "../snapshot" }
 utils = { path = "../utils" }
 virtio_gen = { path = "../virtio_gen" }
-vaccel-bindings = { git = "https://github.com/cloudkernels/vaccel-bindings", branch = "feat_tf_inference" }
