@@ -4,9 +4,15 @@ on:
   push:
     branches: [ vaccel-0.23, vaccel-0.23-extend ]
     paths:
-      - '**/Dockerfile*'
+      - 'tools/devctr/Dockerfile.aarch64'
+      - 'tools/devctr/Dockerfile.x86_64'
+
   pull_request:
     branches: [ vaccel-0.23 ]
+    paths:
+      - 'tools/devctr/Dockerfile.aarch64'
+      - 'tools/devctr/Dockerfile.x86_64'
+
   workflow_dispatch:
 
 jobs:
