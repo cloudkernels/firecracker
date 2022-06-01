@@ -7,7 +7,15 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [ self-hosted, "${{ matrix.arch }}" ]
+
+    env:
+      ARCHI: ${{ matrix.arch }}
+    
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+
 
     steps:
       - name: Checkout code
@@ -39,6 +47,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.NBFC_BUILDER_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/cargo_target/x86_64-unknown-linux-gnu/release/firecracker
-          asset_name: firecracker-vaccel
+          asset_path: ./build/cargo_target/${{env.ARCHI}}-unknown-linux-gnu/release/firecracker
+          asset_name: firecracker-vaccel-${{env.ARCHI}}
           asset_content_type: application/zip
