@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - vaccel-0.23
+    tags:
+      - vaccel-v*
 
 jobs:
   build:
@@ -44,3 +46,22 @@ jobs:
           secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           local-path: build/cargo_target/${{ matrix.arch }}-unknown-linux-gnu/${{ matrix.build_type }}/firecracker
           remote-path: nbfc-assets/github/firecracker/${{ env.ARTIFACT_SHA }}/${{ matrix.arch }}/${{ matrix.build_type}}/
+
+
+  invoke_create_release:
+    if: startsWith(github.ref, 'refs/tags/vaccel-v')
+    needs: build
+    runs-on: [self-hosted]
+
+    steps:
+    - name: Get tag name
+      uses: olegtarasov/get-tag@v2.1
+      id: tagName
+
+    - name: Invoke workflow
+      uses: benc-uk/workflow-dispatch@v1
+      with:
+        workflow: "Create vaccel firecracker release"
+        token: ${{secrets.WORKFLOW_DISPATCH}}
+        ref: ${{steps.tagName.outputs.tag}}
+        inputs: '{ "tag": "${{steps.tagName.outputs.tag}}" }'
