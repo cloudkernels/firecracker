@@ -1,9 +1,12 @@
 name: Create vaccel firecracker release
 
 on:
-  push:
-    tags:
-      - vaccel-v*
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to create release for"
+        required: true
+        default: 'warning'
 
 jobs:
   build:
@@ -16,6 +19,15 @@ jobs:
       - name: Find tag
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
+      - name: Find SHA
+        run: |
+          if [[ "${{github.event.pull_request.head.sha}}" != "" ]]
+          then
+            echo "ARTIFACT_SHA=$(echo ${{github.event.pull_request.head.sha}})" >> $GITHUB_ENV
+          else
+            echo "ARTIFACT_SHA=$(echo ${{github.sha}})" >> $GITHUB_ENV
+          fi
+
       - name: Download FC artifact-aarch64
         id: download-artifact-aarch64
         uses: cloudkernels/minio-download@v2
@@ -24,7 +36,7 @@ jobs:
           access-key: ${{ secrets.AWS_ACCESS_KEY }}
           secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           local-path: /github/workspace/release/firecracker-vaccel-aarch64
-          remote-path: nbfc-assets/github/firecracker/${{github.event.inputs.tag}}/aarch64/release/firecracker
+          remote-path: nbfc-assets/github/firecracker/${{ env.ARTIFACT_SHA }}/aarch64/release/firecracker
 
       - name: Download FC artifact-x86_64
         id: download-artifact-x86
@@ -34,7 +46,7 @@ jobs:
           access-key: ${{ secrets.AWS_ACCESS_KEY }}
           secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           local-path: /github/workspace/release/firecracker-vaccel-x86_64
-          remote-path: nbfc-assets/github/firecracker/${{github.event.inputs.tag}}/x86_64/release/firecracker
+          remote-path: nbfc-assets/github/firecracker/${{ env.ARTIFACT_SHA }}/x86_64/release/firecracker
 
 
       - name: Create Release
@@ -43,7 +55,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo_token: ${{secrets.GITHUB_TOKEN}}
-          automatic_release_tag: ${{github.event.inputs.tag}}
+          automatic_release_tag: ${{ env.ARTIFACT_NAME }}
           title: "vAccel FC release ${{github.event.inputs.tag}}"
           files: |
             release/firecracker-vaccel-aarch64
