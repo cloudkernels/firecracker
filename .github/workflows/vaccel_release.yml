@@ -17,7 +17,7 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
       - name: Download FC artifact-aarch64
-        id: download-artifact
+        id: download-artifact-aarch64
         uses: cloudkernels/minio-download@v2
         with:
           url: https://s3.nubificus.co.uk
@@ -27,7 +27,7 @@ jobs:
           remote-path: nbfc-assets/github/firecracker/${{github.event.inputs.tag}}/aarch64/release/firecracker
 
       - name: Download FC artifact-x86_64
-        id: download-artifact
+        id: download-artifact-x86
         uses: cloudkernels/minio-download@v2
         with:
           url: https://s3.nubificus.co.uk
